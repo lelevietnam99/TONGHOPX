@@ -51,20 +51,27 @@ function rebuildCache() {
 }
 
 /**
- * Trang admin.html gọi vào đây (POST). Cần đặt Script property ADMIN_KEY = <mật khẩu tự chọn>.
- * Body: {"action":"refresh","key":"<mật khẩu>"}
+ * Xử lý yêu cầu "cập nhật dữ liệu" từ trang admin.html.
+ * Cần đặt Script property ADMIN_KEY = <mật khẩu tự chọn>.
+ *
+ * LƯU Ý: một dự án Apps Script chỉ có MỘT hàm doPost. Vì dự án của bạn có nhiều file .gs,
+ * hãy thêm 2 dòng sau vào ĐẦU hàm doPost đã có sẵn (không tạo doPost thứ hai):
+ *
+ *   var body = {};
+ *   try { body = JSON.parse((e && e.postData && e.postData.contents) || "{}"); } catch (err) {}
+ *   if (body.action === "refresh") return handleAdminRefresh_(body);
+ *
+ * (trang admin.html gửi body dạng {"action":"refresh","key":"<mật khẩu>"})
  */
-function doPost(e) {
+function handleAdminRefresh_(req) {
   try {
-    var req = JSON.parse((e && e.postData && e.postData.contents) || "{}");
     var adminKey = PropertiesService.getScriptProperties().getProperty("ADMIN_KEY");
-    if (!adminKey) return jsonOut_({ status: "error", message: "Chưa đặt ADMIN_KEY trong Script properties." });
-    if (req.key !== adminKey) return jsonOut_({ status: "error", message: "Sai mật khẩu quản trị." });
-    if (req.action !== "refresh") return jsonOut_({ status: "error", message: "Hành động không hợp lệ." });
+    if (!adminKey) return adminJson_({ status: "error", message: "Chưa đặt ADMIN_KEY trong Script properties." });
+    if (req.key !== adminKey) return adminJson_({ status: "error", message: "Sai mật khẩu quản trị." });
     var r = refreshAll_();
-    return jsonOut_({ status: r.error ? "error" : "success", message: r.message, count: r.count, pushed: r.pushed, updatedAt: r.updatedAt });
+    return adminJson_({ status: r.error ? "error" : "success", message: r.message, count: r.count, pushed: r.pushed, updatedAt: r.updatedAt });
   } catch (err) {
-    return jsonOut_({ status: "error", message: err.toString() });
+    return adminJson_({ status: "error", message: err.toString() });
   }
 }
 
@@ -92,7 +99,7 @@ function setupWeeklyTrigger() {
  */
 
 // ---------- HÀM NỘI BỘ ----------
-function jsonOut_(obj) {
+function adminJson_(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
 }
 

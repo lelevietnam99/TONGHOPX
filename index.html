@@ -50,7 +50,8 @@
         .club-item .count { font-weight: bold; color: var(--primary); background: #e8f4f8; padding: 4px 10px; border-radius: 12px; font-size: 0.85rem; white-space: nowrap;}
         
         .table-wrapper { background: var(--card-bg); border-radius: 10px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.05);}
-        .table-header { padding: 20px; background: #fff; border-bottom: 1px solid var(--border); }
+        .table-header { padding: 20px; background: #fff; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+        .last-updated { font-size: 0.85rem; color: #7f8c8d; }
         table { width: 100%; border-collapse: collapse; } th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid var(--border); }
         th { background-color: #f8f9fa; color: #7f8c8d; font-weight: 600; font-size: 0.95rem; } 
         tbody tr:hover { background-color: #f1f4f6; }
@@ -152,7 +153,10 @@
         </div>
 
         <div class="table-wrapper">
-            <div class="table-header"><h3><i class="fas fa-users"></i> Danh Sách Võ Sinh Chi Tiết</h3></div>
+            <div class="table-header">
+                <h3><i class="fas fa-users"></i> Danh Sách Võ Sinh Chi Tiết</h3>
+                <span class="last-updated" id="lastUpdated"></span>
+            </div>
             <table>
                 <thead>
                     <tr>
@@ -179,7 +183,10 @@
         // ==========================================
         // DÁN LẠI LINK API CỦA BẠN VÀO ĐÂY:
         // ==========================================
-        const API_URL = "https://script.google.com/macros/s/AKfycbwec0v7qcCGpMIr2KSSIM-Em72ipOTcf572ho90VjM_YKc0WVz9hKVE336zwdJqQXxg0A/exec";
+        const API_URL = "https://script.google.com/macros/s/AKfycbyo2e3qQ-OfYDpeuHUuhPx96NewvQkz0v-Mbf2yzvtGDmiSIf_-nLrxiNwpBO8ulKa0qA/exec";
+
+        // Cache trên trình duyệt. Đổi số v1 -> v2 nếu sau này đổi cấu trúc dữ liệu để buộc mọi máy tải lại.
+        const CACHE_KEY = "pqq_dashboard_cache_v1";
 
         let allStudentsData = []; 
         let dataStats = {};       
@@ -192,17 +199,59 @@
         const progressBar = document.getElementById('progressBar');
         const progressStatus = document.getElementById('progressStatus');
 
-        // BẮT ĐẦU ỨNG DỤNG VÀ PHÁT NHẠC
+        // ---------- CACHE TRÊN TRÌNH DUYỆT ----------
+        function readLocalCache() {
+            try {
+                const cached = JSON.parse(localStorage.getItem(CACHE_KEY));
+                return cached && Array.isArray(cached.data) ? cached : null;
+            } catch (e) { return null; }
+        }
+
+        function writeLocalCache(result) {
+            try {
+                localStorage.setItem(CACHE_KEY, JSON.stringify({ updatedAt: result.updatedAt, data: result.data }));
+            } catch (e) { console.warn("Không lưu được cache trên máy:", e); }
+        }
+
+        // ---------- LẤY DỮ LIỆU TỪ API (đã có cache phía Apps Script nên rất nhanh) ----------
+        async function fetchRemoteData() {
+            if (API_URL === "DÁN_LINK_API_CỦA_BẠN_VÀO_ĐÂY") throw new Error("Bạn chưa thay thế đường link API!");
+            const response = await fetch(API_URL);
+            const result = await response.json();
+            if (result.status !== "success") throw new Error(result.message);
+            return result;
+        }
+
+        // Bắt đầu tải ngay khi mở trang, song song với lúc người dùng còn đang ở màn hình chào.
+        const remotePromise = fetchRemoteData();
+        remotePromise.catch(() => {}); // Lỗi được xử lý ở startApp()
+
+        // BẮT ĐẦU ỨNG DỤNG
         function startApp() {
             document.getElementById('entryScreen').style.display = 'none';
-            
-            // Phát nhạc nền
+
+            const cached = readLocalCache();
+            if (cached) {
+                // Đã có bản lưu trên máy: hiện ngay, không cần thanh loading và nhạc chờ.
+                initDashboard(cached.data, cached.updatedAt);
+                showDashboard();
+                // Âm thầm kiểm tra dữ liệu mới, chỉ vẽ lại khi có thay đổi.
+                remotePromise.then(result => {
+                    writeLocalCache(result);
+                    if (!result.updatedAt || result.updatedAt !== cached.updatedAt) {
+                        initDashboard(result.data, result.updatedAt);
+                    }
+                }).catch(error => console.warn("Chưa cập nhật được dữ liệu mới, đang dùng bản lưu trên máy:", error));
+                return;
+            }
+
+            // Lần đầu truy cập (chưa có cache): phát nhạc chờ + thanh loading
             const audio = document.getElementById('bgMusic');
             audio.volume = 0.5;
             audio.play().catch(e => console.log("Trình duyệt chặn nhạc tự động:", e));
-            
+
             document.getElementById('loader').style.display = 'flex';
-            fetchGoogleSheetsData();
+            loadFromNetwork();
         }
 
         function startLoading() {
@@ -223,33 +272,29 @@
             progressBar.style.width = "100%";
             progressBar.innerText = "100%";
             progressStatus.innerText = "Hoàn thành! Đang hiển thị Dashboard...";
-            
-            setTimeout(() => {
-                // TẮT NHẠC NỀN
-                const audio = document.getElementById('bgMusic');
-                if(audio) {
-                    audio.pause();
-                    audio.currentTime = 0; 
-                }
-                
-                document.getElementById('loader').style.display = 'none';
-                document.getElementById('topbarArea').style.display = 'flex';
-                document.getElementById('dashboardContent').style.display = 'block';
-            }, 800);
+            setTimeout(showDashboard, 800);
         }
 
-        async function fetchGoogleSheetsData() {
+        function showDashboard() {
+            // TẮT NHẠC NỀN
+            const audio = document.getElementById('bgMusic');
+            if(audio) {
+                audio.pause();
+                audio.currentTime = 0; 
+            }
+
+            document.getElementById('loader').style.display = 'none';
+            document.getElementById('topbarArea').style.display = 'flex';
+            document.getElementById('dashboardContent').style.display = 'block';
+        }
+
+        async function loadFromNetwork() {
             try {
-                if(API_URL === "DÁN_LINK_API_CỦA_BẠN_VÀO_ĐÂY") throw new Error("Bạn chưa thay thế đường link API!");
                 startLoading();
-                const response = await fetch(API_URL);
-                const result = await response.json();
-                if (result.status === "success") {
-                    setTimeout(() => { 
-                        initDashboard(result.data); 
-                        completeLoading();
-                    }, 600);
-                } else { throw new Error(result.message); }
+                const result = await remotePromise;
+                writeLocalCache(result);
+                initDashboard(result.data, result.updatedAt);
+                completeLoading();
             } catch (error) {
                 console.error("Lỗi lấy dữ liệu:", error);
                 clearInterval(progressInterval);
@@ -257,12 +302,29 @@
             }
         }
 
-        function initDashboard(data) {
+        function formatUpdatedAt(iso) {
+            const date = new Date(iso);
+            return iso && !isNaN(date) ? "Dữ liệu cập nhật lúc: " + date.toLocaleString("vi-VN") : "";
+        }
+
+        function filterStudents(keywordRaw) {
+            const keyword = (keywordRaw || '').toLowerCase();
+            if (!keyword) return allStudentsData;
+            return allStudentsData.filter(student => 
+                student.name.toLowerCase().includes(keyword) || 
+                student.dharma.toLowerCase().includes(keyword) ||
+                student.club.toLowerCase().includes(keyword) ||
+                student.belt.toLowerCase().includes(keyword)
+            );
+        }
+
+        function initDashboard(data, updatedAt) {
             allStudentsData = data;
             processStats();
             updateScoreCards();
             renderChart();
-            renderTable(allStudentsData);
+            renderTable(filterStudents(document.getElementById('searchInput').value));
+            document.getElementById('lastUpdated').innerText = formatUpdatedAt(updatedAt);
         }
 
         function processStats() {
@@ -293,6 +355,8 @@
                 if(dataStats[key].total > 0) { labels.push(key); dataValues.push(dataStats[key].total); }
             });
 
+            if (myChart) myChart.destroy(); // Vẽ lại khi có dữ liệu mới thì phải hủy biểu đồ cũ
+
             myChart = new Chart(ctx, {
                 type: 'doughnut',
                 data: { labels: labels, datasets: [{ data: dataValues, backgroundColor: colors.slice(0, labels.length), hoverOffset: 10 }] },
@@ -317,20 +381,14 @@
                 `<i class="fas fa-list"></i> ${region} <span style="font-size: 0.9rem; color: #e67e22; margin-left: 8px;">(Tổng: ${totalClubs} Đơn vị)</span>`;
             
             const container = document.getElementById('clubListContainer');
-            container.innerHTML = ''; 
-            
-            let stt = 1; 
-            for (const [clubName, count] of Object.entries(clubs)) {
-                container.innerHTML += `
+            container.innerHTML = Object.entries(clubs).map(([clubName, count], index) => `
                     <div class="club-item">
                         <span>
-                            <span class="stt-box">${stt}.</span> 
+                            <span class="stt-box">${index + 1}.</span>
                             ${clubName}
                         </span>
                         <span class="count">${count} võ sinh</span>
-                    </div>`;
-                stt++; 
-            }
+                    </div>`).join('');
         }
 
         function renderTable(data, isReset = true) {
@@ -355,14 +413,14 @@
             const nextCount = Math.min(currentDisplayCount + ITEMS_PER_PAGE, currentDataToRender.length);
             const batch = currentDataToRender.slice(currentDisplayCount, nextCount);
 
-            // Chỉ nối thêm (+=) các dòng mới vào bảng thay vì load lại toàn bộ
-            batch.forEach((student, index) => {
+            // Ghép sẵn HTML của cả lô rồi chèn 1 lần, thay vì tbody.innerHTML += cho từng dòng
+            const rowsHtml = batch.map((student, index) => {
                 const actualIndex = currentDisplayCount + index + 1; // Cập nhật đúng số thứ tự
-                let profileHtml = student.profile ? 
-                    `<a href="${student.profile}" target="_blank" class="github-link"><i class="fab fa-github"></i> Xem</a>` : 
+                let profileHtml = student.profile ?
+                    `<a href="${student.profile}" target="_blank" class="github-link"><i class="fab fa-github"></i> Xem</a>` :
                     `<span class="empty-link">-</span>`;
 
-                tbody.innerHTML += `
+                return `
                     <tr>
                         <td>${actualIndex}</td>
                         <td style="font-weight: bold;">${student.name}</td>
@@ -372,7 +430,8 @@
                         <td><span class="badge-belt">${student.belt}</span></td>
                         <td>${profileHtml}</td>
                     </tr>`;
-            });
+            }).join('');
+            tbody.insertAdjacentHTML('beforeend', rowsHtml);
 
             // Cập nhật lại mốc đếm
             currentDisplayCount = nextCount;
@@ -389,24 +448,7 @@
             renderTable(currentDataToRender, false); 
         });
         document.getElementById('searchInput').addEventListener('keyup', function(e) {
-            const keyword = e.target.value.toLowerCase();
-            const filtered = allStudentsData.filter(student => 
-                student.name.toLowerCase().includes(keyword) || 
-                student.dharma.toLowerCase().includes(keyword) ||
-                student.club.toLowerCase().includes(keyword) ||
-                student.belt.toLowerCase().includes(keyword)
-            );
-            renderTable(filtered, true); // Chạy lại bảng từ đầu với dữ liệu đã lọc
-        });
-        document.getElementById('searchInput').addEventListener('keyup', function(e) {
-            const keyword = e.target.value.toLowerCase();
-            const filtered = allStudentsData.filter(student => 
-                student.name.toLowerCase().includes(keyword) || 
-                student.dharma.toLowerCase().includes(keyword) ||
-                student.club.toLowerCase().includes(keyword) ||
-                student.belt.toLowerCase().includes(keyword)
-            );
-            renderTable(filtered);
+            renderTable(filterStudents(e.target.value), true); // Chạy lại bảng từ đầu với dữ liệu đã lọc
         });
     </script>
 </body>

@@ -185,6 +185,9 @@
         // ==========================================
         const API_URL = "https://script.google.com/macros/s/AKfycbypWx53WriIPT5GzArMXefjhBB5P3t9Xyifm6aWEWmP8a1E6bMg0O8H0ccsGA6JyMbJyg/exec";
 
+        // File dữ liệu dựng sẵn, do Apps Script tự đẩy lên GitHub (cùng thư mục với index.html)
+        const DATA_URL = "data.json";
+
         // Cache trên trình duyệt. Đổi số v1 -> v2 nếu sau này đổi cấu trúc dữ liệu để buộc mọi máy tải lại.
         const CACHE_KEY = "pqq_dashboard_cache_v1";
 
@@ -216,6 +219,15 @@
         // ---------- LẤY DỮ LIỆU TỪ API (đã có cache phía Apps Script nên rất nhanh) ----------
         async function fetchRemoteData() {
             if (API_URL === "DÁN_LINK_API_CỦA_BẠN_VÀO_ĐÂY") throw new Error("Bạn chưa thay thế đường link API!");
+            // Ưu tiên file data.json nằm sẵn trên GitHub Pages (tải tức thì). Chưa có thì mới gọi Apps Script.
+            try {
+                const staticRes = await fetch(DATA_URL, { cache: "no-cache" });
+                if (staticRes.ok) {
+                    const staticResult = await staticRes.json();
+                    if (staticResult.status === "success" && Array.isArray(staticResult.data)) return staticResult;
+                }
+            } catch (e) { console.warn("Chưa đọc được data.json, chuyển sang gọi Apps Script:", e); }
+
             const response = await fetch(API_URL);
             const result = await response.json();
             if (result.status !== "success") throw new Error(result.message);

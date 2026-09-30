@@ -42,7 +42,7 @@
         <div class="log" id="log"></div>
 
         <p class="hint">
-            Quá trình quét toàn bộ tab CLB mất khoảng 1 phút, sau đó GitHub Pages cần thêm khoảng 1 phút để công bố file mới.
+            Việc quét chạy ngầm trong Apps Script (khoảng 1-2 phút), sau đó GitHub Pages cần thêm khoảng 1 phút để công bố file mới.
             Vui lòng không đóng trang trong lúc chờ. <br>
             <a href="index.html">← Về Dashboard</a>
         </p>
@@ -90,6 +90,13 @@
             return cur;
         }
 
+        const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+        async function callApi(action, key) {
+            const res = await fetch(API_URL + '?action=' + action + '&key=' + encodeURIComponent(key));
+            return res.json();
+        }
+
         async function refresh() {
             const key = $('adminKey').value;
             if (!key) { addStep('Vui lòng nhập mật khẩu quản trị.', 'err'); return; }
@@ -99,29 +106,45 @@
 
             $('btnRefresh').disabled = true;
             $('log').innerHTML = '';
-            const before = await readPublished();
-            const s1 = addStep('1/3 Đang quét Google Sheets (khoảng 1 phút)...');
             try {
-                const res = await fetch(API_URL + '?action=refresh&key=' + encodeURIComponent(key));
-                const result = await res.json();
-                if (result.status !== 'success') throw new Error(result.message);
-                if (typeof result.pushed === 'undefined') throw new Error('Apps Script đang chạy bản cũ. Hãy Triển khai → Phiên bản mới rồi thử lại.');
-                s1.textContent = '1/3 Đã quét xong: ' + result.count + ' võ sinh.'; s1.classList.add('ok');
-                if (!result.pushed) throw new Error('Apps Script chưa đẩy được lên GitHub. ' + result.message);
-                addStep('2/3 Đã đẩy data.json lên GitHub.', 'ok');
+                // Bước 1: ra lệnh. Apps Script trả lời ngay, việc quét chạy ngầm.
+                const s1 = addStep('1/4 Đang gửi lệnh cập nhật...');
+                const start = await callApi('refresh', key);
+                if (start.status !== 'success') throw new Error(start.message);
+                if (typeof start.started === 'undefined') throw new Error('Apps Script đang chạy bản cũ. Hãy Triển khai → Phiên bản mới rồi thử lại.');
+                s1.textContent = start.started ? '1/4 Đã gửi lệnh cập nhật.' : '1/4 Đang có một lượt cập nhật chạy sẵn, sẽ theo dõi lượt đó.';
+                s1.classList.add('ok');
 
-                const s3 = addStep('3/3 Đang chờ GitHub Pages công bố file mới...');
-                const start = Date.now();
-                while (Date.now() - start < PUBLISH_WAIT_MS) {
+                // Bước 2: hỏi tiến độ quét + đẩy lên GitHub
+                const s2 = addStep('2/4 Đang quét Google Sheets và đẩy lên GitHub (khoảng 1-2 phút)...');
+                let result = null;
+                const t0 = Date.now();
+                while (Date.now() - t0 < 6 * 60 * 1000) {
+                    await sleep(5000);
+                    try {
+                        const st = await callApi('status', key);
+                        const state = st.state;
+                        if (st.status === 'success' && state && state.runId === start.runId && state.state !== 'running') { result = state; break; }
+                    } catch (e) { /* lỗi mạng thoáng qua: hỏi lại lượt sau */ }
+                }
+                if (!result) throw new Error('Quá 6 phút mà chưa xong. Hãy xem mục Nhật ký thực thi trong Apps Script.');
+                if (result.state === 'error' || !result.pushed) throw new Error(result.message || 'Chưa đẩy được lên GitHub.');
+                s2.textContent = '2/4 Đã quét xong ' + result.count + ' võ sinh.'; s2.classList.add('ok');
+                addStep('3/4 Đã đẩy data.json lên GitHub.', 'ok');
+
+                // Bước 4: chờ GitHub Pages công bố
+                const s4 = addStep('4/4 Đang chờ GitHub Pages công bố file mới...');
+                const t1 = Date.now();
+                while (Date.now() - t1 < PUBLISH_WAIT_MS) {
                     const now = await readPublished();
                     if (now && now.updatedAt === result.updatedAt) {
-                        s3.textContent = '3/3 Hoàn tất! Dashboard đã dùng dữ liệu mới (' + now.count + ' võ sinh).'; s3.classList.add('ok');
+                        s4.textContent = '4/4 Hoàn tất! Dashboard đã dùng dữ liệu mới (' + now.count + ' võ sinh).'; s4.classList.add('ok');
                         await showCurrent();
                         return;
                     }
-                    await new Promise(r => setTimeout(r, POLL_EVERY_MS));
+                    await sleep(POLL_EVERY_MS);
                 }
-                s3.textContent = '3/3 Đã đẩy lên GitHub nhưng trang chưa công bố kịp. Hãy thử tải lại sau ít phút.'; s3.classList.add('err');
+                s4.textContent = '4/4 Đã đẩy lên GitHub nhưng trang chưa công bố kịp. Hãy thử tải lại sau ít phút.'; s4.classList.add('err');
             } catch (error) {
                 addStep('Lỗi: ' + error.message, 'err');
             } finally {

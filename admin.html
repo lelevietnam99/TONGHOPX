@@ -102,10 +102,10 @@
             const before = await readPublished();
             const s1 = addStep('1/3 Đang quét Google Sheets (khoảng 1 phút)...');
             try {
-                // Không đặt Content-Type -> trình duyệt gửi dạng text/plain, tránh lỗi CORS preflight với Apps Script
-                const res = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'refresh', key }) });
+                const res = await fetch(API_URL + '?action=refresh&key=' + encodeURIComponent(key));
                 const result = await res.json();
                 if (result.status !== 'success') throw new Error(result.message);
+                if (typeof result.pushed === 'undefined') throw new Error('Apps Script đang chạy bản cũ. Hãy Triển khai → Phiên bản mới rồi thử lại.');
                 s1.textContent = '1/3 Đã quét xong: ' + result.count + ' võ sinh.'; s1.classList.add('ok');
                 if (!result.pushed) throw new Error('Apps Script chưa đẩy được lên GitHub. ' + result.message);
                 addStep('2/3 Đã đẩy data.json lên GitHub.', 'ok');

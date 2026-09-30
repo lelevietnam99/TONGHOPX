@@ -32,6 +32,8 @@ var GITHUB_DATA_PATH = "data.json";                // Nằm cùng thư mục v�
 // ---------- API CHO WEB ----------
 function doGet(e) {
   try {
+    var params = (e && e.parameter) || {};
+    if (params.action === "refresh") return handleAdminRefresh_(params.key);  // Từ trang admin.html
     var payload = readCache_();
     if (!payload) payload = buildAndSave_();       // Lần đầu chưa có cache
     return ContentService.createTextOutput(payload)
@@ -51,23 +53,15 @@ function rebuildCache() {
 }
 
 /**
- * Xử lý yêu cầu "cập nhật dữ liệu" từ trang admin.html.
+ * Xử lý yêu cầu "cập nhật dữ liệu" từ trang admin.html (gọi qua doGet ở trên).
  * Cần đặt Script property ADMIN_KEY = <mật khẩu tự chọn>.
- *
- * LƯU Ý: một dự án Apps Script chỉ có MỘT hàm doPost. Vì dự án của bạn có nhiều file .gs,
- * hãy thêm 2 dòng sau vào ĐẦU hàm doPost đã có sẵn (không tạo doPost thứ hai):
- *
- *   var body = {};
- *   try { body = JSON.parse((e && e.postData && e.postData.contents) || "{}"); } catch (err) {}
- *   if (body.action === "refresh") return handleAdminRefresh_(body);
- *
- * (trang admin.html gửi body dạng {"action":"refresh","key":"<mật khẩu>"})
+ * Cố ý KHÔNG dùng doPost để không đè lên doPost của các file .gs khác trong dự án.
  */
-function handleAdminRefresh_(req) {
+function handleAdminRefresh_(key) {
   try {
     var adminKey = PropertiesService.getScriptProperties().getProperty("ADMIN_KEY");
     if (!adminKey) return adminJson_({ status: "error", message: "Chưa đặt ADMIN_KEY trong Script properties." });
-    if (req.key !== adminKey) return adminJson_({ status: "error", message: "Sai mật khẩu quản trị." });
+    if (!key || key !== adminKey) return adminJson_({ status: "error", message: "Sai mật khẩu quản trị." });
     var r = refreshAll_();
     return adminJson_({ status: r.error ? "error" : "success", message: r.message, count: r.count, pushed: r.pushed, updatedAt: r.updatedAt });
   } catch (err) {

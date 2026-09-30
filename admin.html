@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
+    <title>Quản trị dữ liệu - Dashboard PQQ</title>
+    <style>
+        :root { --primary: #2C3E50; --secondary: #E67E22; --bg-color: #F4F6F9; --ok: #27ae60; --err: #e74c3c; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, sans-serif; }
+        body { background: var(--bg-color); color: #333; min-height: 100vh; display: flex; justify-content: center; padding: 30px 15px; }
+        .card { background: #fff; width: 100%; max-width: 560px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); padding: 28px; align-self: flex-start; }
+        h1 { color: var(--primary); font-size: 1.4rem; margin-bottom: 4px; }
+        .sub { color: #7f8c8d; font-size: 0.9rem; margin-bottom: 22px; }
+        .info { background: #f8f9fa; border-radius: 8px; padding: 14px 16px; margin-bottom: 22px; font-size: 0.95rem; line-height: 1.7; }
+        .info b { color: var(--primary); }
+        label { display: block; font-weight: 600; margin-bottom: 6px; color: var(--primary); }
+        input[type=password] { width: 100%; padding: 10px 12px; border: 1px solid #d5dbe0; border-radius: 8px; font-size: 1rem; }
+        .remember { display: flex; align-items: center; gap: 8px; margin: 10px 0 20px; font-size: 0.9rem; color: #555; }
+        button { width: 100%; padding: 13px; border: none; border-radius: 30px; font-size: 1.05rem; font-weight: bold; color: #fff; cursor: pointer; background: linear-gradient(135deg, #e67e22, #d35400); }
+        button:disabled { opacity: 0.6; cursor: not-allowed; }
+        .log { margin-top: 20px; display: flex; flex-direction: column; gap: 8px; }
+        .step { padding: 10px 14px; border-radius: 8px; background: #f1f4f6; font-size: 0.95rem; }
+        .step.ok { background: #eafaf1; color: #1e8449; }
+        .step.err { background: #fdedec; color: #c0392b; }
+        .hint { margin-top: 20px; font-size: 0.85rem; color: #7f8c8d; line-height: 1.6; }
+        a { color: #2980b9; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>Quản trị dữ liệu Dashboard</h1>
+        <p class="sub">Bấm cập nhật sau khi bạn sửa dữ liệu trong Google Sheets.</p>
+
+        <div class="info" id="info">Đang đọc dữ liệu hiện tại...</div>
+
+        <label for="adminKey">Mật khẩu quản trị</label>
+        <input type="password" id="adminKey" autocomplete="current-password" placeholder="Nhập mật khẩu (ADMIN_KEY)">
+        <label class="remember"><input type="checkbox" id="remember"> Nhớ mật khẩu trên máy này</label>
+
+        <button id="btnRefresh">Cập nhật dữ liệu ngay</button>
+        <div class="log" id="log"></div>
+
+        <p class="hint">
+            Quá trình quét toàn bộ tab CLB mất khoảng 1 phút, sau đó GitHub Pages cần thêm khoảng 1 phút để công bố file mới.
+            Vui lòng không đóng trang trong lúc chờ. <br>
+            <a href="index.html">← Về Dashboard</a>
+        </p>
+    </div>
+
+    <script>
+        // Dùng cùng link API với index.html
+        const API_URL = "https://script.google.com/macros/s/AKfycbxY6WUSHptdipSpQFLuKJtAtG_WBj_HLkKVGwgl1TNuZta53gE1TrTOqANdFUNWIjO3rQ/exec";
+        const DATA_URL = "data.json";
+        const KEY_STORAGE = "pqq_admin_key";
+        const PUBLISH_WAIT_MS = 4 * 60 * 1000;   // chờ tối đa 4 phút để GitHub Pages công bố
+        const POLL_EVERY_MS = 10 * 1000;
+
+        const $ = id => document.getElementById(id);
+
+        function addStep(text, cls = '') {
+            const div = document.createElement('div');
+            div.className = 'step ' + cls;
+            div.textContent = text;          // textContent: không chèn HTML
+            $('log').appendChild(div);
+            return div;
+        }
+
+        function fmt(iso) {
+            const d = new Date(iso);
+            return isNaN(d) ? '(chưa rõ)' : d.toLocaleString('vi-VN');
+        }
+
+        async function readPublished() {
+            try {
+                const res = await fetch(DATA_URL + '?t=' + Date.now(), { cache: 'no-store' });
+                if (!res.ok) return null;
+                const json = await res.json();
+                return { updatedAt: json.updatedAt, count: Array.isArray(json.data) ? json.data.length : 0 };
+            } catch (e) { return null; }
+        }
+
+        async function showCurrent() {
+            const cur = await readPublished();
+            $('info').innerHTML = '';
+            if (!cur) { $('info').textContent = 'Chưa có file data.json trên trang (Dashboard đang lấy dữ liệu trực tiếp từ Apps Script).'; return null; }
+            const line = (label, value) => { const p = document.createElement('div'); const b = document.createElement('b'); b.textContent = label + ': '; p.append(b, value); $('info').appendChild(p); };
+            line('Dữ liệu đang công bố', fmt(cur.updatedAt));
+            line('Số võ sinh', String(cur.count));
+            return cur;
+        }
+
+        async function refresh() {
+            const key = $('adminKey').value;
+            if (!key) { addStep('Vui lòng nhập mật khẩu quản trị.', 'err'); return; }
+            try {
+                if ($('remember').checked) localStorage.setItem(KEY_STORAGE, key); else localStorage.removeItem(KEY_STORAGE);
+            } catch (e) {}
+
+            $('btnRefresh').disabled = true;
+            $('log').innerHTML = '';
+            const before = await readPublished();
+            const s1 = addStep('1/3 Đang quét Google Sheets (khoảng 1 phút)...');
+            try {
+                // Không đặt Content-Type -> trình duyệt gửi dạng text/plain, tránh lỗi CORS preflight với Apps Script
+                const res = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'refresh', key }) });
+                const result = await res.json();
+                if (result.status !== 'success') throw new Error(result.message);
+                s1.textContent = '1/3 Đã quét xong: ' + result.count + ' võ sinh.'; s1.classList.add('ok');
+                if (!result.pushed) throw new Error('Apps Script chưa đẩy được lên GitHub. ' + result.message);
+                addStep('2/3 Đã đẩy data.json lên GitHub.', 'ok');
+
+                const s3 = addStep('3/3 Đang chờ GitHub Pages công bố file mới...');
+                const start = Date.now();
+                while (Date.now() - start < PUBLISH_WAIT_MS) {
+                    const now = await readPublished();
+                    if (now && now.updatedAt === result.updatedAt) {
+                        s3.textContent = '3/3 Hoàn tất! Dashboard đã dùng dữ liệu mới (' + now.count + ' võ sinh).'; s3.classList.add('ok');
+                        await showCurrent();
+                        return;
+                    }
+                    await new Promise(r => setTimeout(r, POLL_EVERY_MS));
+                }
+                s3.textContent = '3/3 Đã đẩy lên GitHub nhưng trang chưa công bố kịp. Hãy thử tải lại sau ít phút.'; s3.classList.add('err');
+            } catch (error) {
+                addStep('Lỗi: ' + error.message, 'err');
+            } finally {
+                $('btnRefresh').disabled = false;
+            }
+        }
+
+        try { const saved = localStorage.getItem(KEY_STORAGE); if (saved) { $('adminKey').value = saved; $('remember').checked = true; } } catch (e) {}
+        $('btnRefresh').addEventListener('click', refresh);
+        showCurrent();
+    </script>
+</body>
+</html>

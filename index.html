@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Quản Lý Võ Đường PQQ</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root { --primary: #2C3E50; --secondary: #E67E22; --bg-color: #F4F6F9; --card-bg: #FFFFFF; --text-main: #333; --border: #ecf0f1; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, sans-serif; }
+        body { background-color: var(--bg-color); color: var(--text-main); }
+        
+        .topbar { background-color: var(--primary); color: white; padding: 15px 30px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 10px rgba(0,0,0,0.1); position: sticky; top: 0; z-index: 100; }
+        .logo { font-size: 1.5rem; font-weight: bold; } .logo span { color: var(--secondary); }
+        
+        .topbar-actions { display: flex; align-items: center; gap: 20px; }
+        
+        .btn-progress-update {
+            background: linear-gradient(135deg, #e74c3c, #c0392b); color: white; padding: 8px 18px; border-radius: 20px; text-decoration: none; font-weight: bold; font-size: 0.95rem; display: flex; align-items: center; gap: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); transition: all 0.3s ease;
+        }
+        .btn-progress-update:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.3); background: linear-gradient(135deg, #c0392b, #e74c3c); }
+
+        .search-box { position: relative; }
+        .search-box input { padding: 8px 15px 8px 35px; border-radius: 20px; border: none; width: 250px; outline: none;}
+        .search-box i { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: #999; }
+        
+        .container { padding: 30px; max-width: 1200px; margin: 0 auto; }
+        
+        .stats-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 15px; margin-bottom: 30px; }
+        .stat-card { background: var(--card-bg); padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border-left: 5px solid var(--primary); }
+        .stat-card.north { border-left-color: #3498db; } .stat-card.center { border-left-color: #f1c40f; } .stat-card.south { border-left-color: #2ecc71; } .stat-card.overseas { border-left-color: #9b59b6; } 
+        
+        .stat-title { font-size: 0.85rem; color: #7f8c8d; text-transform: uppercase; font-weight: bold;}
+        .stat-value { font-size: 1.8rem; font-weight: bold; margin-top: 10px; }
+        
+        .chart-section { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px; }
+        .card { background: var(--card-bg); padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+        .card h3 { margin-bottom: 20px; color: var(--primary); border-bottom: 2px solid var(--border); padding-bottom: 10px;}
+        .chart-container { position: relative; height: 300px; width: 100%; }
+        
+        .club-list-details { max-height: 280px; overflow-y: auto; padding-right: 15px;}
+        .club-list-details::-webkit-scrollbar { width: 6px; }
+        .club-list-details::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 10px; }
+        .club-list-details::-webkit-scrollbar-thumb { background-color: #bdc3c7; border-radius: 10px; }
+        
+        .club-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px dashed var(--border); }
+        .club-item:last-child { border-bottom: none; }
+        .club-item .stt-box { color: #7f8c8d; font-weight: bold; width: 25px; display: inline-block; }
+        .club-item .count { font-weight: bold; color: var(--primary); background: #e8f4f8; padding: 4px 10px; border-radius: 12px; font-size: 0.85rem; white-space: nowrap;}
+        
+        .table-wrapper { background: var(--card-bg); border-radius: 10px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.05);}
+        .table-header { padding: 20px; background: #fff; border-bottom: 1px solid var(--border); }
+        table { width: 100%; border-collapse: collapse; } th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid var(--border); }
+        th { background-color: #f8f9fa; color: #7f8c8d; font-weight: 600; font-size: 0.95rem; } 
+        tbody tr:hover { background-color: #f1f4f6; }
+        .badge-belt { padding: 4px 10px; border-radius: 20px; font-size: 0.85rem; font-weight: bold; background-color: #ecf0f1; color: #2c3e50; }
+        
+        .github-link { display: inline-flex; align-items: center; gap: 5px; color: #333; text-decoration: none; font-weight: bold; background: #ecf0f1; padding: 4px 10px; border-radius: 6px; transition: 0.2s; font-size: 0.85rem; }
+        .github-link:hover { background: #2c3e50; color: white; }
+        .empty-link { color: #bdc3c7; font-style: italic; font-size: 0.85rem; }
+
+        .error-msg { color: #e74c3c; text-align: center; margin-top: 20px; font-weight: bold;}
+        
+        #dashboardContent { display: none; }
+
+        /* MÀN HÌNH CHÀO MỪNG ĐỂ KHỞI ĐỘNG NHẠC CHỜ */
+        #entryScreen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--bg-color); z-index: 3000; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+        #entryScreen h1 { color: var(--primary); margin-bottom: 10px; text-transform: uppercase; font-size: 2.2rem;}
+        #entryScreen p { color: #7f8c8d; margin-bottom: 30px; font-size: 1.2rem; font-weight: 500;}
+        .btn-start { background: linear-gradient(135deg, #2C3E50, #3498db); font-size: 1.3rem; padding: 15px 35px; border-radius: 30px; border: none; color: white; font-weight: bold; cursor: pointer; box-shadow: 0 4px 15px rgba(44, 62, 80, 0.4); animation: pulse 2s infinite; transition: 0.3s;}
+        .btn-start:hover { transform: translateY(-3px); box-shadow: 0 6px 20px rgba(44, 62, 80, 0.6); }
+        @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(44, 62, 80, 0.4); } 70% { box-shadow: 0 0 0 15px rgba(44, 62, 80, 0); } 100% { box-shadow: 0 0 0 0 rgba(44, 62, 80, 0); } }
+
+        /* THANH LOADING */
+        #loader { display: none; flex-direction: column; justify-content: center; align-items: center; height: 100vh; position: fixed; top: 0; left: 0; width: 100%; background: var(--bg-color); z-index: 2000;}
+        #loader h2 { color: var(--primary); margin-bottom: 20px; font-size: 1.5rem; }
+        .progress-container { width: 100%; max-width: 400px; background-color: #e0e0e0; border-radius: 20px; height: 25px; overflow: hidden; box-shadow: inset 0 1px 3px rgba(0,0,0,0.2); position: relative; }
+        .progress-bar { height: 100%; width: 0%; background: linear-gradient(90deg, #27ae60, #2ecc71); border-radius: 20px; transition: width 0.3s ease; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 0.95rem; text-shadow: 1px 1px 2px rgba(0,0,0,0.4); background-image: linear-gradient( 45deg, rgba(255, 255, 255, 0.2) 25%, transparent 25%, transparent 50%, rgba(255, 255, 255, 0.2) 50%, rgba(255, 255, 255, 0.2) 75%, transparent 75%, transparent ); background-size: 1rem 1rem; animation: progress-stripes 1s linear infinite; }
+        @keyframes progress-stripes { from { background-position: 1rem 0; } to { background-position: 0 0; } }
+        .progress-status { margin-top: 15px; color: #27ae60; font-weight: bold; font-size: 1.1rem; letter-spacing: 0.5px; }
+    </style>
+</head>
+<body>
+
+    <audio id="bgMusic" loop>
+        <source src="nhac_cho_2.mp3" type="audio/mpeg">
+    </audio>
+
+    <div id="entryScreen">
+        <h1><i class="fas fa-chart-line"></i> Dashboard Hệ Thống PQQ</h1>
+        <p>Trung tâm Quản lý & Giám sát dữ liệu Võ Đường</p>
+        <button class="btn-start" onclick="startApp()"><i class="fas fa-power-off"></i> TRUY CẬP HỆ THỐNG</button>
+    </div>
+
+    <div id="loader">
+        <h2><i class="fas fa-cloud-download-alt"></i> Đang đồng bộ dữ liệu Dashboard...</h2>
+        <div class="progress-container"><div class="progress-bar" id="progressBar">0%</div></div>
+        <div class="progress-status" id="progressStatus">Đang kết nối tới Google Sheets...</div>
+        <p id="errorText" class="error-msg"></p>
+    </div>
+
+    <div class="topbar" id="topbarArea" style="display: none;">
+        <div class="logo">PQQ <span>Dashboard</span></div>
+        <div class="topbar-actions">
+            <a href="https://lelevietnam99.github.io/DANHSACHTHITHANGDAI_CHINHTHUC/" class="btn-progress-update" style="background: linear-gradient(135deg, #e67e22, #d35400);" target="_blank">
+                <i class="fas fa-list-check"></i> Danh Sách Thi Thăng Đai
+            </a>
+            <a href="https://lelevietnam99.github.io/QUY_TRINH_TO_CHUC_THI_THANG_DAI/" class="btn-progress-update" style="background: linear-gradient(135deg, #16a085, #138d75);" target="_blank">
+                <i class="fas fa-book"></i> Quy Trình Tổ Chức Thi
+            </a>
+            <a href="https://lelevietnam99.github.io/BANGGIAMSATTIENDO/" class="btn-progress-update" style="background: linear-gradient(135deg, #16a085, #1abc9c);" target="_blank">
+                <i class="fas fa-chart-bar"></i> Bảng Giám Sát Tiến Độ
+            </a>
+            <a href="https://lelevietnam99.github.io/HUONGDAN_BAOCAOTIENDO/" class="btn-progress-update" target="_blank">
+                <i class="fas fa-clipboard-check"></i> Chấm Tiến Độ
+            </a>
+            <a href="https://lelevietnam99.github.io/DANGKYTHITHANGDAI/" class="btn-progress-update" style="background: linear-gradient(135deg, #3498db, #2980b9);" target="_blank">
+                <i class="fas fa-clipboard-list"></i> Đăng ký thi thăng đai
+            </a>
+            <a href="https://lelevietnam99.github.io/CHAMTHITHANGDAI/" class="btn-progress-update" style="background: linear-gradient(135deg, #9b59b6, #8e44ad);" target="_blank">
+                <i class="fas fa-star"></i> Chấm thi thăng đai (dành cho BHL)
+            </a>
+            <div class="search-box">
+                <i class="fas fa-search"></i>
+                <input type="text" id="searchInput" placeholder="Tìm tên, Pháp danh, CLB...">
+            </div>
+        </div>
+    </div>
+
+    <div class="container" id="dashboardContent">
+        <div class="stats-grid">
+            <div class="stat-card"><div class="stat-title">Tổng Võ Sinh</div><div class="stat-value" id="totalStudents">0</div></div>
+            <div class="stat-card north"><div class="stat-title">Miền Bắc</div><div class="stat-value" id="totalNorth">0</div></div>
+            <div class="stat-card center"><div class="stat-title">Miền Trung</div><div class="stat-value" id="totalCenter">0</div></div>
+            <div class="stat-card south"><div class="stat-title">Miền Nam</div><div class="stat-value" id="totalSouth">0</div></div>
+            <div class="stat-card overseas"><div class="stat-title">Nước Ngoài</div><div class="stat-value" id="totalOverseas">0</div></div>
+        </div>
+
+        <div class="chart-section">
+            <div class="card">
+                <h3><i class="fas fa-chart-pie"></i> Tỷ Lệ Theo Khu Vực</h3>
+                <p style="font-size: 0.85rem; color: #7f8c8d; margin-bottom: 10px;">* Click vào biểu đồ để xem chi tiết CLB.</p>
+                <div class="chart-container"><canvas id="regionChart"></canvas></div>
+            </div>
+            <div class="card">
+                <h3 id="detailTitle"><i class="fas fa-list"></i> Chi Tiết Danh Sách Đơn Vị</h3>
+                <div class="club-list-details" id="clubListContainer">
+                    <p style="color: #999; text-align: center; margin-top: 50px;">Vui lòng click vào biểu đồ bên trái để xem chi tiết</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="table-wrapper">
+            <div class="table-header"><h3><i class="fas fa-users"></i> Danh Sách Võ Sinh Chi Tiết</h3></div>
+            <table>
+                <thead>
+                    <tr>
+                        <th width="5%">STT</th>
+                        <th width="20%">Họ và tên</th>
+                        <th width="15%">Pháp Danh</th>
+                        <th width="20%">Câu lạc bộ</th>
+                        <th width="10%">Khu vực</th>
+                        <th width="18%">Cấp đai</th>
+                        <th width="12%">Profile</th>
+                    </tr>
+                </thead>
+                <tbody id="studentTableBody"></tbody>
+            </table>
+            <div id="loadMoreContainer" style="text-align: center; padding: 20px; background: #fff; border-top: 1px solid var(--border);">
+                <button id="btnLoadMore" class="btn-progress-update" style="margin: 0 auto; background: linear-gradient(135deg, #e67e22, #d35400); display: none;">
+                    <i class="fas fa-chevron-down"></i> Tải thêm danh sách
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        // DÁN LẠI LINK API CỦA BẠN VÀO ĐÂY:
+        // ==========================================
+        const API_URL = "https://script.google.com/macros/s/AKfycbwec0v7qcCGpMIr2KSSIM-Em72ipOTcf572ho90VjM_YKc0WVz9hKVE336zwdJqQXxg0A/exec";
+
+        let allStudentsData = []; 
+        let dataStats = {};       
+        let myChart = null;       
+        let currentDisplayCount = 0; 
+        let currentDataToRender = []; 
+        const ITEMS_PER_PAGE = 20;
+        let currentProgress = 0; 
+        let progressInterval;
+        const progressBar = document.getElementById('progressBar');
+        const progressStatus = document.getElementById('progressStatus');
+
+        // BẮT ĐẦU ỨNG DỤNG VÀ PHÁT NHẠC
+        function startApp() {
+            document.getElementById('entryScreen').style.display = 'none';
+            
+            // Phát nhạc nền
+            const audio = document.getElementById('bgMusic');
+            audio.volume = 0.5;
+            audio.play().catch(e => console.log("Trình duyệt chặn nhạc tự động:", e));
+            
+            document.getElementById('loader').style.display = 'flex';
+            fetchGoogleSheetsData();
+        }
+
+        function startLoading() {
+            progressInterval = setInterval(() => {
+                if (currentProgress < 90) {
+                    currentProgress += Math.floor(Math.random() * 15) + 1;
+                    if (currentProgress > 90) currentProgress = 90;
+                    progressBar.style.width = currentProgress + "%";
+                    progressBar.innerText = currentProgress + "%";
+                    if(currentProgress > 30 && currentProgress < 60) progressStatus.innerText = "Đang tổng hợp các tab CLB...";
+                    if(currentProgress >= 60) progressStatus.innerText = "Đang phân tích dữ liệu võ sinh...";
+                }
+            }, 300);
+        }
+
+        function completeLoading() {
+            currentProgress = 100;
+            progressBar.style.width = "100%";
+            progressBar.innerText = "100%";
+            progressStatus.innerText = "Hoàn thành! Đang hiển thị Dashboard...";
+            
+            setTimeout(() => {
+                // TẮT NHẠC NỀN
+                const audio = document.getElementById('bgMusic');
+                if(audio) {
+                    audio.pause();
+                    audio.currentTime = 0; 
+                }
+                
+                document.getElementById('loader').style.display = 'none';
+                document.getElementById('topbarArea').style.display = 'flex';
+                document.getElementById('dashboardContent').style.display = 'block';
+            }, 800);
+        }
+
+        async function fetchGoogleSheetsData() {
+            try {
+                if(API_URL === "DÁN_LINK_API_CỦA_BẠN_VÀO_ĐÂY") throw new Error("Bạn chưa thay thế đường link API!");
+                startLoading();
+                const response = await fetch(API_URL);
+                const result = await response.json();
+                if (result.status === "success") {
+                    setTimeout(() => { 
+                        initDashboard(result.data); 
+                        completeLoading();
+                    }, 600);
+                } else { throw new Error(result.message); }
+            } catch (error) {
+                console.error("Lỗi lấy dữ liệu:", error);
+                clearInterval(progressInterval);
+                document.getElementById('errorText').innerText = "Lỗi kết nối: " + error.message;
+            }
+        }
+
+        function initDashboard(data) {
+            allStudentsData = data;
+            processStats();
+            updateScoreCards();
+            renderChart();
+            renderTable(allStudentsData);
+        }
+
+        function processStats() {
+            dataStats = { "Miền Bắc": { total: 0, clubs: {} }, "Miền Trung": { total: 0, clubs: {} }, "Miền Nam": { total: 0, clubs: {} }, "Nước Ngoài": { total: 0, clubs: {} }, "Chưa rõ": { total: 0, clubs: {} } };
+            allStudentsData.forEach(st => {
+                let region = st.region;
+                if(!dataStats[region]) region = "Chưa rõ";
+                dataStats[region].total += 1;
+                if (!dataStats[region].clubs[st.club]) dataStats[region].clubs[st.club] = 0;
+                dataStats[region].clubs[st.club] += 1;
+            });
+        }
+
+        function updateScoreCards() {
+            document.getElementById('totalStudents').innerText = allStudentsData.length;
+            document.getElementById('totalNorth').innerText = dataStats["Miền Bắc"].total;
+            document.getElementById('totalCenter').innerText = dataStats["Miền Trung"].total;
+            document.getElementById('totalSouth').innerText = dataStats["Miền Nam"].total;
+            document.getElementById('totalOverseas').innerText = dataStats["Nước Ngoài"].total;
+        }
+
+        function renderChart() {
+            const ctx = document.getElementById('regionChart').getContext('2d');
+            const labels = []; const dataValues = []; 
+            const colors = ['#3498db', '#f1c40f', '#2ecc71', '#9b59b6', '#95a5a6'];
+
+            Object.keys(dataStats).forEach(key => {
+                if(dataStats[key].total > 0) { labels.push(key); dataValues.push(dataStats[key].total); }
+            });
+
+            myChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: { labels: labels, datasets: [{ data: dataValues, backgroundColor: colors.slice(0, labels.length), hoverOffset: 10 }] },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    onClick: (event, elements) => {
+                        if (elements.length > 0) {
+                            const index = elements[0].index;
+                            const region = myChart.data.labels[index];
+                            showClubDetails(region);
+                        }
+                    }
+                }
+            });
+        }
+
+        function showClubDetails(region) {
+            const clubs = dataStats[region].clubs;
+            const totalClubs = Object.keys(clubs).length; 
+            
+            document.getElementById('detailTitle').innerHTML = 
+                `<i class="fas fa-list"></i> ${region} <span style="font-size: 0.9rem; color: #e67e22; margin-left: 8px;">(Tổng: ${totalClubs} Đơn vị)</span>`;
+            
+            const container = document.getElementById('clubListContainer');
+            container.innerHTML = ''; 
+            
+            let stt = 1; 
+            for (const [clubName, count] of Object.entries(clubs)) {
+                container.innerHTML += `
+                    <div class="club-item">
+                        <span>
+                            <span class="stt-box">${stt}.</span> 
+                            ${clubName}
+                        </span>
+                        <span class="count">${count} võ sinh</span>
+                    </div>`;
+                stt++; 
+            }
+        }
+
+        function renderTable(data, isReset = true) {
+            const tbody = document.getElementById('studentTableBody');
+            const btnLoadMore = document.getElementById('btnLoadMore');
+
+            // Nếu isReset = true (khi mới load web hoặc khi gõ tìm kiếm), làm sạch bảng và đếm lại từ 0
+            if (isReset) {
+                tbody.innerHTML = '';
+                currentDisplayCount = 0;
+                currentDataToRender = data; // Lưu lại mảng dữ liệu đang cần hiển thị
+            }
+
+            // Xử lý nếu mảng trống
+            if(currentDataToRender.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;">Chưa có dữ liệu võ sinh nào.</td></tr>';
+                btnLoadMore.style.display = 'none';
+                return;
+            }
+
+            // Tính toán khoảng dữ liệu sẽ lấy thêm (vd: từ 0 -> 20, lần sau từ 20 -> 40)
+            const nextCount = Math.min(currentDisplayCount + ITEMS_PER_PAGE, currentDataToRender.length);
+            const batch = currentDataToRender.slice(currentDisplayCount, nextCount);
+
+            // Chỉ nối thêm (+=) các dòng mới vào bảng thay vì load lại toàn bộ
+            batch.forEach((student, index) => {
+                const actualIndex = currentDisplayCount + index + 1; // Cập nhật đúng số thứ tự
+                let profileHtml = student.profile ? 
+                    `<a href="${student.profile}" target="_blank" class="github-link"><i class="fab fa-github"></i> Xem</a>` : 
+                    `<span class="empty-link">-</span>`;
+
+                tbody.innerHTML += `
+                    <tr>
+                        <td>${actualIndex}</td>
+                        <td style="font-weight: bold;">${student.name}</td>
+                        <td>${student.dharma}</td>
+                        <td>${student.club}</td>
+                        <td><span style="font-size: 0.85rem; font-weight: bold; color: #34495E;">${student.region}</span></td>
+                        <td><span class="badge-belt">${student.belt}</span></td>
+                        <td>${profileHtml}</td>
+                    </tr>`;
+            });
+
+            // Cập nhật lại mốc đếm
+            currentDisplayCount = nextCount;
+
+            // Ẩn/hiện nút "Xem thêm" dựa vào việc đã load hết dữ liệu chưa
+            if (currentDisplayCount < currentDataToRender.length) {
+                btnLoadMore.style.display = 'flex';
+            } else {
+                btnLoadMore.style.display = 'none';
+            }
+        }
+        document.getElementById('btnLoadMore').addEventListener('click', function() {
+            // isReset = false để nó nối tiếp vào bảng hiện tại
+            renderTable(currentDataToRender, false); 
+        });
+        document.getElementById('searchInput').addEventListener('keyup', function(e) {
+            const keyword = e.target.value.toLowerCase();
+            const filtered = allStudentsData.filter(student => 
+                student.name.toLowerCase().includes(keyword) || 
+                student.dharma.toLowerCase().includes(keyword) ||
+                student.club.toLowerCase().includes(keyword) ||
+                student.belt.toLowerCase().includes(keyword)
+            );
+            renderTable(filtered, true); // Chạy lại bảng từ đầu với dữ liệu đã lọc
+        });
+        document.getElementById('searchInput').addEventListener('keyup', function(e) {
+            const keyword = e.target.value.toLowerCase();
+            const filtered = allStudentsData.filter(student => 
+                student.name.toLowerCase().includes(keyword) || 
+                student.dharma.toLowerCase().includes(keyword) ||
+                student.club.toLowerCase().includes(keyword) ||
+                student.belt.toLowerCase().includes(keyword)
+            );
+            renderTable(filtered);
+        });
+    </script>
+</body>
+</html>

@@ -34,6 +34,7 @@ function doGet(e) {
   try {
     var params = (e && e.parameter) || {};
     if (params.action === "refresh") return handleAdminRefresh_(params.key);  // Từ trang admin.html
+    if (params.action === "status") return handleAdminStatus_(params.key);
     var payload = readCache_();
     if (!payload) payload = buildAndSave_();       // Lần đầu chưa có cache
     return ContentService.createTextOutput(payload)
@@ -53,20 +54,65 @@ function rebuildCache() {
 }
 
 /**
- * Xử lý yêu cầu "cập nhật dữ liệu" từ trang admin.html (gọi qua doGet ở trên).
+ * Yêu cầu "cập nhật dữ liệu" từ trang admin.html (gọi qua doGet).
+ * Việc quét mất ~30-60 giây nên KHÔNG chạy ngay trong yêu cầu web (chờ lâu dễ bị Google trả về trang lỗi HTML).
+ * Thay vào đó: đặt một trigger chạy sau ~1 giây rồi trả lời ngay; trang admin sẽ hỏi tiến độ bằng action=status.
  * Cần đặt Script property ADMIN_KEY = <mật khẩu tự chọn>.
  * Cố ý KHÔNG dùng doPost để không đè lên doPost của các file .gs khác trong dự án.
  */
 function handleAdminRefresh_(key) {
   try {
-    var adminKey = PropertiesService.getScriptProperties().getProperty("ADMIN_KEY");
-    if (!adminKey) return adminJson_({ status: "error", message: "Chưa đặt ADMIN_KEY trong Script properties." });
-    if (!key || key !== adminKey) return adminJson_({ status: "error", message: "Sai mật khẩu quản trị." });
-    var r = refreshAll_();
-    return adminJson_({ status: r.error ? "error" : "success", message: r.message, count: r.count, pushed: r.pushed, updatedAt: r.updatedAt });
+    var denied = checkAdminKey_(key);
+    if (denied) return denied;
+
+    var props = PropertiesService.getScriptProperties();
+    var current = JSON.parse(props.getProperty("REFRESH_STATE") || "null");
+    // Đang có lượt cập nhật chạy dở (dưới 10 phút) thì không tạo thêm
+    if (current && current.state === "running" && Date.now() - current.runId < 10 * 60 * 1000) {
+      return adminJson_({ status: "success", started: false, runId: current.runId });
+    }
+
+    var runId = Date.now();
+    props.setProperty("REFRESH_STATE", JSON.stringify({ runId: runId, state: "running" }));
+    ScriptApp.newTrigger("runScheduledRefresh_").timeBased().after(1000).create();
+    return adminJson_({ status: "success", started: true, runId: runId });
   } catch (err) {
     return adminJson_({ status: "error", message: err.toString() });
   }
+}
+
+/** Trang admin hỏi tiến độ lượt cập nhật gần nhất (?action=status&key=...). */
+function handleAdminStatus_(key) {
+  var denied = checkAdminKey_(key);
+  if (denied) return denied;
+  var state = JSON.parse(PropertiesService.getScriptProperties().getProperty("REFRESH_STATE") || "null");
+  return adminJson_({ status: "success", state: state });
+}
+
+/** Được trigger gọi: làm việc thật rồi ghi kết quả vào REFRESH_STATE. */
+function runScheduledRefresh_() {
+  ScriptApp.getProjectTriggers().forEach(function (t) {
+    if (t.getHandlerFunction() === "runScheduledRefresh_") ScriptApp.deleteTrigger(t);
+  });
+  var props = PropertiesService.getScriptProperties();
+  var state = JSON.parse(props.getProperty("REFRESH_STATE") || "{}");
+  try {
+    var r = refreshAll_();
+    state.state = r.error ? "error" : "done";
+    state.message = r.message; state.count = r.count; state.pushed = r.pushed; state.updatedAt = r.updatedAt;
+  } catch (err) {
+    state.state = "error";
+    state.message = err.toString();
+  }
+  props.setProperty("REFRESH_STATE", JSON.stringify(state));
+}
+
+/** Trả về JSON lỗi nếu chưa đặt / sai mật khẩu; trả về null nếu hợp lệ. */
+function checkAdminKey_(key) {
+  var adminKey = PropertiesService.getScriptProperties().getProperty("ADMIN_KEY");
+  if (!adminKey) return adminJson_({ status: "error", message: "Chưa đặt ADMIN_KEY trong Script properties." });
+  if (!key || key !== adminKey) return adminJson_({ status: "error", message: "Sai mật khẩu quản trị." });
+  return null;
 }
 
 /** Chạy MỘT LẦN để cài lịch tự động cập nhật mỗi thứ Hai lúc 2h sáng. */

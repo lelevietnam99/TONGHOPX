@@ -18,7 +18,7 @@
 var MASTER_SHEET = "DS_CLB_VD";                    // Tab tổng (Tên CLB -> Khu vực)
 var CACHE_FILE_NAME = "dashboard_cache.json";      // Tên file cache trên Drive
 var CACHE_FILE_ID_PROP = "DASHBOARD_CACHE_FILE_ID";
-var LAST_COL = 14;                                 // Chỉ đọc đến cột N (Giới tính)
+var LAST_COL = 21;                                 // Chỉ đọc đến cột U (Link ảnh đại diện)
 
 // ---------- ĐẨY data.json LÊN GITHUB (để web đọc trực tiếp, không cần chờ Apps Script) ----------
 // Token KHÔNG viết vào code. Vào Project Settings -> Script properties -> thêm GITHUB_TOKEN = <token>.
@@ -259,7 +259,8 @@ function buildDashboardData_() {
         region: region,
         belt: cellText_(row[5], tz) || "Chưa cập nhật", // Cột F: Cấp đai
         profile: cellText_(row[11], tz),             // Cột L: Link profile
-        gender: cellText_(row[13], tz) || "Chưa rõ"  // Cột N: Giới tính
+        gender: cellText_(row[13], tz) || "Chưa rõ", // Cột N: Giới tính
+        photo: photoRef_(row[20])                    // Cột U: Link ảnh đại diện (lưu ID file Drive cho gọn)
       });
     }
   }
@@ -273,6 +274,22 @@ function cellText_(value, tz) {
   if (value === null || value === undefined) return "";
   if (value instanceof Date) return Utilities.formatDate(value, tz, "dd/MM/yyyy");
   return value.toString().trim();
+}
+
+/**
+ * Chuẩn hóa ô "LINK ẢNH ĐẠI DIỆN":
+ *  - Link Google Drive (file/d/ID, open?id=ID, uc?id=ID, thumbnail?id=ID) hoặc chỉ dán ID -> trả về ID file
+ *  - Link ảnh khác (https://...) -> giữ nguyên link
+ *  - Ô trống / link thư mục / nội dung lạ -> "" (web sẽ hiện ảnh mặc định)
+ */
+function photoRef_(value) {
+  var text = (value === null || value === undefined) ? "" : value.toString().trim();
+  if (!text) return "";
+  var m = text.match(/\/file\/d\/([-\w]{20,})/) || text.match(/\/d\/([-\w]{20,})/) || text.match(/[?&]id=([-\w]{20,})/);
+  if (m) return m[1];
+  if (/^[-\w]{20,}$/.test(text)) return text;
+  if (/^https?:\/\/(?!drive\.google\.com\/drive\/)/i.test(text)) return text;
+  return "";
 }
 
 function readCache_() {

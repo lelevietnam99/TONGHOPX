@@ -57,6 +57,25 @@
         tbody tr:hover { background-color: #f1f4f6; }
         .badge-belt { padding: 4px 10px; border-radius: 20px; font-size: 0.85rem; font-weight: bold; background-color: #ecf0f1; color: #2c3e50; }
         
+        /* ẢNH ĐẠI DIỆN */
+        tbody tr.student-row { cursor: pointer; }
+        .avatar { width: 44px; height: 44px; border-radius: 50%; object-fit: cover; display: block; background: #ecf0f1; border: 2px solid #fff; box-shadow: 0 0 0 1px #dfe6e9; }
+        .avatar-empty { display: flex; align-items: center; justify-content: center; color: #fff; font-weight: bold; font-size: 1.1rem; background: linear-gradient(135deg, #95a5a6, #7f8c8d); }
+        .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 4000; justify-content: center; align-items: center; padding: 15px; }
+        .modal-overlay.open { display: flex; }
+        .modal-card { background: #fff; border-radius: 14px; width: 100%; max-width: 760px; max-height: 92vh; overflow-y: auto; display: flex; gap: 24px; padding: 28px; position: relative; box-shadow: 0 10px 40px rgba(0,0,0,0.3); }
+        .modal-close { position: absolute; top: 10px; right: 14px; border: none; background: none; font-size: 1.8rem; line-height: 1; color: #7f8c8d; cursor: pointer; }
+        .modal-close:hover { color: var(--primary); }
+        .modal-photo { flex: 0 0 240px; }
+        .modal-photo .avatar { width: 240px; height: 300px; border-radius: 12px; border-width: 0; font-size: 5rem; }
+        .modal-info { flex: 1; min-width: 0; }
+        .modal-info h2 { color: var(--primary); font-size: 1.5rem; margin-bottom: 4px; }
+        .modal-dharma { color: var(--secondary); font-weight: 600; margin-bottom: 16px; min-height: 1.2em; }
+        .modal-grid { display: grid; grid-template-columns: 110px 1fr; gap: 10px 12px; font-size: 0.95rem; margin-bottom: 20px; }
+        .modal-grid dt { color: #7f8c8d; font-weight: 600; }
+        .modal-grid dd { color: #333; word-break: break-word; }
+        @media (max-width: 640px) { .modal-card { flex-direction: column; align-items: center; padding: 22px; } .modal-photo { flex-basis: auto; } .modal-photo .avatar { width: 200px; height: 250px; } .modal-info { width: 100%; } }
+
         .github-link { display: inline-flex; align-items: center; gap: 5px; color: #333; text-decoration: none; font-weight: bold; background: #ecf0f1; padding: 4px 10px; border-radius: 6px; transition: 0.2s; font-size: 0.85rem; }
         .github-link:hover { background: #2c3e50; color: white; }
         .empty-link { color: #bdc3c7; font-style: italic; font-size: 0.85rem; }
@@ -161,12 +180,13 @@
                 <thead>
                     <tr>
                         <th width="5%">STT</th>
-                        <th width="20%">Họ và tên</th>
-                        <th width="15%">Pháp Danh</th>
-                        <th width="20%">Câu lạc bộ</th>
+                        <th width="7%">Ảnh</th>
+                        <th width="19%">Họ và tên</th>
+                        <th width="14%">Pháp Danh</th>
+                        <th width="19%">Câu lạc bộ</th>
                         <th width="10%">Khu vực</th>
-                        <th width="18%">Cấp đai</th>
-                        <th width="12%">Profile</th>
+                        <th width="16%">Cấp đai</th>
+                        <th width="10%">Profile</th>
                     </tr>
                 </thead>
                 <tbody id="studentTableBody"></tbody>
@@ -175,6 +195,19 @@
                 <button id="btnLoadMore" class="btn-progress-update" style="margin: 0 auto; background: linear-gradient(135deg, #e67e22, #d35400); display: none;">
                     <i class="fas fa-chevron-down"></i> Tải thêm danh sách
                 </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="studentModal" aria-hidden="true">
+        <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modalName">
+            <button class="modal-close" id="modalClose" aria-label="Đóng">&times;</button>
+            <div class="modal-photo" id="modalPhoto"></div>
+            <div class="modal-info">
+                <h2 id="modalName"></h2>
+                <div class="modal-dharma" id="modalDharma"></div>
+                <dl class="modal-grid" id="modalGrid"></dl>
+                <div id="modalProfile"></div>
             </div>
         </div>
     </div>
@@ -188,8 +221,8 @@
         // File dữ liệu dựng sẵn, do Apps Script tự đẩy lên GitHub (cùng thư mục với index.html)
         const DATA_URL = "data.json";
 
-        // Cache trên trình duyệt. Đổi số v1 -> v2 nếu sau này đổi cấu trúc dữ liệu để buộc mọi máy tải lại.
-        const CACHE_KEY = "pqq_dashboard_cache_v1";
+        // Cache trên trình duyệt. Đổi số v2 -> v3 nếu sau này đổi cấu trúc dữ liệu để buộc mọi máy tải lại.
+        const CACHE_KEY = "pqq_dashboard_cache_v2";
 
         let allStudentsData = []; 
         let dataStats = {};       
@@ -403,6 +436,70 @@
                     </div>`).join('');
         }
 
+        // ---------- ẢNH ĐẠI DIỆN ----------
+        function esc(value) {
+            return String(value == null ? '' : value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        }
+
+        // photo là ID file Drive (do Apps Script chuẩn hóa) hoặc một link ảnh đầy đủ
+        function photoUrl(photo, width) {
+            if (!photo) return '';
+            if (/^https?:\/\//i.test(photo)) return photo;
+            return 'https://drive.google.com/thumbnail?id=' + encodeURIComponent(photo) + '&sz=w' + width;
+        }
+
+        function initialOf(name) {
+            const last = String(name || '?').trim().split(/\s+/).pop();
+            return (last.charAt(0) || '?').toUpperCase();
+        }
+
+        function avatarHtml(student, width) {
+            const url = photoUrl(student.photo, width);
+            const initial = esc(initialOf(student.name));
+            if (!url) return `<span class="avatar avatar-empty">${initial}</span>`;
+            return `<img class="avatar" src="${esc(url)}" alt="" loading="lazy" referrerpolicy="no-referrer" data-initial="${initial}">`;
+        }
+
+        // Ảnh lỗi (link sai, chưa chia sẻ công khai...) -> thay bằng chữ cái đầu của tên
+        document.addEventListener('error', function(e) {
+            const img = e.target;
+            if (img && img.tagName === 'IMG' && img.classList.contains('avatar')) {
+                const span = document.createElement('span');
+                span.className = 'avatar avatar-empty';
+                span.textContent = img.dataset.initial || '?';
+                img.replaceWith(span);
+            }
+        }, true);
+
+        function openStudentModal(student) {
+            document.getElementById('modalPhoto').innerHTML = avatarHtml(student, 800);
+            document.getElementById('modalName').textContent = student.name;
+            document.getElementById('modalDharma').textContent = student.dharma ? 'Pháp danh: ' + student.dharma : '';
+            const rows = [['Câu lạc bộ', student.club], ['Khu vực', student.region], ['Cấp đai', student.belt], ['Năm sinh', student.birthYear], ['Giới tính', student.gender]];
+            document.getElementById('modalGrid').innerHTML = rows.map(([label, value]) => `<dt>${label}</dt><dd>${esc(value)}</dd>`).join('');
+            document.getElementById('modalProfile').innerHTML = student.profile ?
+                `<a href="${esc(student.profile)}" target="_blank" rel="noopener" class="github-link"><i class="fab fa-github"></i> Xem Profile</a>` : '';
+            const modal = document.getElementById('studentModal');
+            modal.classList.add('open');
+            modal.setAttribute('aria-hidden', 'false');
+        }
+
+        function closeStudentModal() {
+            const modal = document.getElementById('studentModal');
+            modal.classList.remove('open');
+            modal.setAttribute('aria-hidden', 'true');
+            document.getElementById('modalPhoto').innerHTML = '';
+        }
+
+        document.getElementById('modalClose').addEventListener('click', closeStudentModal);
+        document.getElementById('studentModal').addEventListener('click', e => { if (e.target.id === 'studentModal') closeStudentModal(); });
+        document.addEventListener('keydown', e => { if (e.key === 'Escape') closeStudentModal(); });
+        document.getElementById('studentTableBody').addEventListener('click', function(e) {
+            if (e.target.closest('a')) return;                       // Bấm link Profile thì không mở cửa sổ chi tiết
+            const row = e.target.closest('tr.student-row');
+            if (row) openStudentModal(currentDataToRender[Number(row.dataset.i)]);
+        });
+
         function renderTable(data, isReset = true) {
             const tbody = document.getElementById('studentTableBody');
             const btnLoadMore = document.getElementById('btnLoadMore');
@@ -416,7 +513,7 @@
 
             // Xử lý nếu mảng trống
             if(currentDataToRender.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;">Chưa có dữ liệu võ sinh nào.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;">Chưa có dữ liệu võ sinh nào.</td></tr>';
                 btnLoadMore.style.display = 'none';
                 return;
             }
@@ -429,17 +526,18 @@
             const rowsHtml = batch.map((student, index) => {
                 const actualIndex = currentDisplayCount + index + 1; // Cập nhật đúng số thứ tự
                 let profileHtml = student.profile ?
-                    `<a href="${student.profile}" target="_blank" class="github-link"><i class="fab fa-github"></i> Xem</a>` :
+                    `<a href="${esc(student.profile)}" target="_blank" rel="noopener" class="github-link"><i class="fab fa-github"></i> Xem</a>` :
                     `<span class="empty-link">-</span>`;
 
                 return `
-                    <tr>
+                    <tr class="student-row" data-i="${currentDisplayCount + index}">
                         <td>${actualIndex}</td>
-                        <td style="font-weight: bold;">${student.name}</td>
-                        <td>${student.dharma}</td>
-                        <td>${student.club}</td>
-                        <td><span style="font-size: 0.85rem; font-weight: bold; color: #34495E;">${student.region}</span></td>
-                        <td><span class="badge-belt">${student.belt}</span></td>
+                        <td>${avatarHtml(student, 120)}</td>
+                        <td style="font-weight: bold;">${esc(student.name)}</td>
+                        <td>${esc(student.dharma)}</td>
+                        <td>${esc(student.club)}</td>
+                        <td><span style="font-size: 0.85rem; font-weight: bold; color: #34495E;">${esc(student.region)}</span></td>
+                        <td><span class="badge-belt">${esc(student.belt)}</span></td>
                         <td>${profileHtml}</td>
                     </tr>`;
             }).join('');

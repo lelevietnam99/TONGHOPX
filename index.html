@@ -59,22 +59,24 @@
         
         /* ẢNH ĐẠI DIỆN */
         tbody tr.student-row { cursor: pointer; }
-        .avatar { width: 44px; height: 44px; border-radius: 50%; object-fit: cover; display: block; background: #ecf0f1; border: 2px solid #fff; box-shadow: 0 0 0 1px #dfe6e9; }
-        .avatar-empty { display: flex; align-items: center; justify-content: center; color: #fff; font-weight: bold; font-size: 1.1rem; background: linear-gradient(135deg, #95a5a6, #7f8c8d); }
+        .avatar { width: 54px; height: 72px; border-radius: 6px; object-fit: contain; display: block; background: #f1f3f5; border: 1px solid #dfe6e9; }
+        .avatar-empty { display: flex; align-items: center; justify-content: center; color: #fff; font-weight: bold; font-size: 1.4rem; background: linear-gradient(135deg, #95a5a6, #7f8c8d); border-color: transparent; }
         .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 4000; justify-content: center; align-items: center; padding: 15px; }
         .modal-overlay.open { display: flex; }
         .modal-card { background: #fff; border-radius: 14px; width: 100%; max-width: 760px; max-height: 92vh; overflow-y: auto; display: flex; gap: 24px; padding: 28px; position: relative; box-shadow: 0 10px 40px rgba(0,0,0,0.3); }
         .modal-close { position: absolute; top: 10px; right: 14px; border: none; background: none; font-size: 1.8rem; line-height: 1; color: #7f8c8d; cursor: pointer; }
         .modal-close:hover { color: var(--primary); }
         .modal-photo { flex: 0 0 240px; }
-        .modal-photo .avatar { width: 240px; height: 300px; border-radius: 12px; border-width: 0; font-size: 5rem; }
+        /* Ảnh lớn: giữ nguyên tỷ lệ gốc, không cắt */
+        .modal-photo img.avatar { width: 100%; height: auto; max-height: 70vh; border-radius: 10px; }
+        .modal-photo .avatar-empty { width: 240px; height: 320px; border-radius: 10px; font-size: 5rem; }
         .modal-info { flex: 1; min-width: 0; }
         .modal-info h2 { color: var(--primary); font-size: 1.5rem; margin-bottom: 4px; }
         .modal-dharma { color: var(--secondary); font-weight: 600; margin-bottom: 16px; min-height: 1.2em; }
         .modal-grid { display: grid; grid-template-columns: 110px 1fr; gap: 10px 12px; font-size: 0.95rem; margin-bottom: 20px; }
         .modal-grid dt { color: #7f8c8d; font-weight: 600; }
         .modal-grid dd { color: #333; word-break: break-word; }
-        @media (max-width: 640px) { .modal-card { flex-direction: column; align-items: center; padding: 22px; } .modal-photo { flex-basis: auto; } .modal-photo .avatar { width: 200px; height: 250px; } .modal-info { width: 100%; } }
+        @media (max-width: 640px) { .modal-card { flex-direction: column; align-items: center; padding: 22px; } .modal-photo { flex-basis: auto; } .modal-photo img.avatar { width: 200px; max-height: 60vh; } .modal-photo .avatar-empty { width: 200px; height: 266px; } .modal-info { width: 100%; } }
 
         .github-link { display: inline-flex; align-items: center; gap: 5px; color: #333; text-decoration: none; font-weight: bold; background: #ecf0f1; padding: 4px 10px; border-radius: 6px; transition: 0.2s; font-size: 0.85rem; }
         .github-link:hover { background: #2c3e50; color: white; }
@@ -532,7 +534,7 @@
                 return `
                     <tr class="student-row" data-i="${currentDisplayCount + index}">
                         <td>${actualIndex}</td>
-                        <td>${avatarHtml(student, 120)}</td>
+                        <td>${avatarHtml(student, 160)}</td>
                         <td style="font-weight: bold;">${esc(student.name)}</td>
                         <td>${esc(student.dharma)}</td>
                         <td>${esc(student.club)}</td>

@@ -103,6 +103,7 @@
             if (!w) return;
             const list = (names, total) => names.join(' | ') + (total > names.length ? ' ... (và ' + (total - names.length) + ' tên nữa)' : '');
             if (w.tabsNotInMasterTotal) addStep('Lưu ý: ' + w.tabsNotInMasterTotal + ' tab CLB không có trong DS_CLB_VD nên chưa hiện trên Dashboard: ' + list(w.tabsNotInMaster, w.tabsNotInMasterTotal) + '. Hãy sửa tên tab hoặc thêm CLB vào DS_CLB_VD cho giống nhau.', 'warn');
+            if (w.emptyTabsTotal) addStep('Lưu ý: ' + w.emptyTabsTotal + ' tab CLB khớp tên nhưng chưa có võ sinh nào (cột Họ và tên trống) nên CLB chưa hiện trên Dashboard: ' + list(w.emptyTabs, w.emptyTabsTotal) + '.', 'warn');
             if (w.clubsWithoutTabTotal) addStep('Lưu ý: ' + w.clubsWithoutTabTotal + ' CLB có trong DS_CLB_VD nhưng chưa có tab khớp tên: ' + list(w.clubsWithoutTab, w.clubsWithoutTabTotal) + '.', 'warn');
         }
 

@@ -147,13 +147,15 @@ function adminJson_(obj) {
 function refreshAll_() {
   var payload = buildAndSave_();
   var parsed = JSON.parse(payload);
-  var w = parsed.warnings || { tabsNotInMaster: [], clubsWithoutTab: [] };
+  var w = parsed.warnings || {};
+  w.tabsNotInMaster = w.tabsNotInMaster || []; w.clubsWithoutTab = w.clubsWithoutTab || []; w.emptyTabs = w.emptyTabs || [];
   var result = {
     count: parsed.data.length, updatedAt: parsed.updatedAt, pushed: false, error: null,
     // Script property giới hạn ~9KB nên chỉ giữ tối đa 15 tên mỗi loại để hiển thị trên trang admin
     warnings: {
       tabsNotInMaster: w.tabsNotInMaster.slice(0, 15), tabsNotInMasterTotal: w.tabsNotInMaster.length,
-      clubsWithoutTab: w.clubsWithoutTab.slice(0, 15), clubsWithoutTabTotal: w.clubsWithoutTab.length
+      clubsWithoutTab: w.clubsWithoutTab.slice(0, 15), clubsWithoutTabTotal: w.clubsWithoutTab.length,
+      emptyTabs: w.emptyTabs.slice(0, 15), emptyTabsTotal: w.emptyTabs.length
     }
   };
   var msg = "Đã cập nhật " + result.count + " võ sinh";
@@ -236,7 +238,7 @@ function normKey_(value) {
 function collectDashboard_() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var masterSheet = ss.getSheetByName(MASTER_SHEET);
-  var warnings = { tabsNotInMaster: [], clubsWithoutTab: [] };
+  var warnings = { tabsNotInMaster: [], clubsWithoutTab: [], emptyTabs: [] };
   if (!masterSheet) return { students: [], warnings: warnings };
 
   var tz = ss.getSpreadsheetTimeZone();
@@ -275,7 +277,8 @@ function collectDashboard_() {
     club.hasTab = true;
 
     var lastRow = sheet.getLastRow();
-    if (lastRow < 2) continue;
+    if (lastRow < 2) { warnings.emptyTabs.push(originalSheetName); continue; }
+    var countBefore = allStudents.length;
 
     // Chỉ đọc đúng vùng cần (dòng 2 -> cuối, cột A -> U) thay vì cả tab
     var rows = sheet.getRange(2, 1, lastRow - 1, LAST_COL).getValues();
@@ -298,6 +301,8 @@ function collectDashboard_() {
         photo: photoRef_(row[20])                    // Cột U: Link ảnh đại diện (lưu ID file Drive cho gọn)
       });
     }
+    // Tab khớp tên nhưng chưa có võ sinh nào (cột B trống) -> CLB sẽ không hiện trên Dashboard
+    if (allStudents.length === countBefore) warnings.emptyTabs.push(originalSheetName);
   }
 
   // CLB có trong DS_CLB_VD nhưng không có tab nào khớp tên
@@ -306,6 +311,7 @@ function collectDashboard_() {
   });
 
   if (warnings.tabsNotInMaster.length) Logger.log("Tab bị bỏ qua (không khớp DS_CLB_VD): " + warnings.tabsNotInMaster.join(" | "));
+  if (warnings.emptyTabs.length) Logger.log("Tab khớp tên nhưng chưa có võ sinh nào: " + warnings.emptyTabs.join(" | "));
   if (warnings.clubsWithoutTab.length) Logger.log("CLB có trong DS_CLB_VD nhưng chưa có tab: " + warnings.clubsWithoutTab.join(" | "));
   return { students: allStudents, warnings: warnings };
 }

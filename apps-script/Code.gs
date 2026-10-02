@@ -99,7 +99,7 @@ function runScheduledRefresh_() {
   try {
     var r = refreshAll_();
     state.state = r.error ? "error" : "done";
-    state.message = r.message; state.count = r.count; state.pushed = r.pushed; state.updatedAt = r.updatedAt;
+    state.message = r.message; state.count = r.count; state.pushed = r.pushed; state.updatedAt = r.updatedAt; state.warnings = r.warnings;
   } catch (err) {
     state.state = "error";
     state.message = err.toString();
@@ -147,7 +147,15 @@ function adminJson_(obj) {
 function refreshAll_() {
   var payload = buildAndSave_();
   var parsed = JSON.parse(payload);
-  var result = { count: parsed.data.length, updatedAt: parsed.updatedAt, pushed: false, error: null };
+  var w = parsed.warnings || { tabsNotInMaster: [], clubsWithoutTab: [] };
+  var result = {
+    count: parsed.data.length, updatedAt: parsed.updatedAt, pushed: false, error: null,
+    // Script property giới hạn ~9KB nên chỉ giữ tối đa 15 tên mỗi loại để hiển thị trên trang admin
+    warnings: {
+      tabsNotInMaster: w.tabsNotInMaster.slice(0, 15), tabsNotInMasterTotal: w.tabsNotInMaster.length,
+      clubsWithoutTab: w.clubsWithoutTab.slice(0, 15), clubsWithoutTabTotal: w.clubsWithoutTab.length
+    }
+  };
   var msg = "Đã cập nhật " + result.count + " võ sinh";
   try {
     result.pushed = pushToGitHub_(payload);
@@ -191,10 +199,12 @@ function buildAndSave_() {
   var lock = LockService.getScriptLock();          // Tránh 2 lần cập nhật chạy chồng nhau
   lock.waitLock(60000);
   try {
+    var dashboard = collectDashboard_();
     var payload = JSON.stringify({
       status: "success",
       updatedAt: new Date().toISOString(),
-      data: buildDashboardData_()
+      data: dashboard.students,
+      warnings: dashboard.warnings
     });
     writeCache_(payload);
     return payload;
@@ -203,27 +213,51 @@ function buildAndSave_() {
   }
 }
 
+/** Giữ tên cũ cho code khác đang gọi: chỉ trả về danh sách võ sinh. */
 function buildDashboardData_() {
+  return collectDashboard_().students;
+}
+
+/**
+ * Chuẩn hóa tên CLB để so khớp giữa tên tab và tab DS_CLB_VD:
+ * bỏ khác biệt chữ hoa/thường, khoảng trắng thừa, kiểu dấu gạch ngang và kiểu gõ dấu tiếng Việt (NFC/NFD).
+ */
+function normKey_(value) {
+  return String(value == null ? "" : value)
+    .normalize("NFC")
+    .replace(/[\u2010-\u2015\u2212]/g, "-")        // các loại dấu gạch ngang -> "-"
+    .replace(/\s*-\s*/g, " - ")                    // "A-B" và "A - B" coi như nhau
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+/** Trả về { students: [...], warnings: { tabsNotInMaster: [...], clubsWithoutTab: [...] } } */
+function collectDashboard_() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var masterSheet = ss.getSheetByName(MASTER_SHEET);
-  if (!masterSheet) return [];
+  var warnings = { tabsNotInMaster: [], clubsWithoutTab: [] };
+  if (!masterSheet) return { students: [], warnings: warnings };
 
   var tz = ss.getSpreadsheetTimeZone();
 
-  // 1. Bản đồ đối chiếu: Tên CLB -> Khu vực (cột B, C của tab tổng)
+  // 1. Bản đồ đối chiếu: Tên CLB (đã chuẩn hóa) -> { tên gốc, khu vực } (cột B, C của tab tổng)
   var masterData = masterSheet.getDataRange().getValues();
-  var regionMap = {};
+  var clubMap = {};
   for (var i = 1; i < masterData.length; i++) {
     var clubName = masterData[i][1];
     var region = masterData[i][2];
-    if (clubName) {
-      regionMap[clubName.toString().trim()] = region ? region.toString().trim() : "Chưa rõ";
+    if (clubName && clubName.toString().trim()) {
+      clubMap[normKey_(clubName)] = {
+        name: clubName.toString().trim(),
+        region: region ? region.toString().trim() : "Chưa rõ",
+        hasTab: false
+      };
     }
   }
 
   // 2. Quét từng tab CLB
   var allStudents = [];
-  var skipped = [];
   var sheets = ss.getSheets();
 
   for (var s = 0; s < sheets.length; s++) {
@@ -233,17 +267,18 @@ function buildDashboardData_() {
 
     // Bỏ số thứ tự ở đầu tên tab: "1. CLB Bảo Quang" -> "CLB Bảo Quang"
     var cleanSheetName = originalSheetName.replace(/^\d+\.\s*/, "").trim();
-    if (!regionMap[cleanSheetName]) {
-      skipped.push(originalSheetName);
+    var club = clubMap[normKey_(cleanSheetName)];
+    if (!club) {
+      warnings.tabsNotInMaster.push(originalSheetName);
       continue;
     }
+    club.hasTab = true;
 
     var lastRow = sheet.getLastRow();
     if (lastRow < 2) continue;
 
-    // Chỉ đọc đúng vùng cần (dòng 2 -> cuối, cột A -> N) thay vì cả tab
+    // Chỉ đọc đúng vùng cần (dòng 2 -> cuối, cột A -> U) thay vì cả tab
     var rows = sheet.getRange(2, 1, lastRow - 1, LAST_COL).getValues();
-    var region = regionMap[cleanSheetName];
 
     for (var j = 0; j < rows.length; j++) {
       var row = rows[j];
@@ -256,7 +291,7 @@ function buildDashboardData_() {
         dharma: cellText_(row[2], tz),               // Cột C: Pháp danh
         birthYear: cellText_(row[3], tz) || "Trống", // Cột D: Năm sinh
         club: cleanSheetName,
-        region: region,
+        region: club.region,
         belt: cellText_(row[5], tz) || "Chưa cập nhật", // Cột F: Cấp đai
         profile: cellText_(row[11], tz),             // Cột L: Link profile
         gender: cellText_(row[13], tz) || "Chưa rõ", // Cột N: Giới tính
@@ -265,9 +300,14 @@ function buildDashboardData_() {
     }
   }
 
-  // Tab nào không khớp tên trong DS_CLB_VD sẽ bị bỏ qua -> ghi log để dễ phát hiện lỗi gõ tên
-  if (skipped.length) Logger.log("Tab bị bỏ qua (không khớp DS_CLB_VD): " + skipped.join(" | "));
-  return allStudents;
+  // CLB có trong DS_CLB_VD nhưng không có tab nào khớp tên
+  Object.keys(clubMap).forEach(function (key) {
+    if (!clubMap[key].hasTab) warnings.clubsWithoutTab.push(clubMap[key].name);
+  });
+
+  if (warnings.tabsNotInMaster.length) Logger.log("Tab bị bỏ qua (không khớp DS_CLB_VD): " + warnings.tabsNotInMaster.join(" | "));
+  if (warnings.clubsWithoutTab.length) Logger.log("CLB có trong DS_CLB_VD nhưng chưa có tab: " + warnings.clubsWithoutTab.join(" | "));
+  return { students: allStudents, warnings: warnings };
 }
 
 function cellText_(value, tz) {

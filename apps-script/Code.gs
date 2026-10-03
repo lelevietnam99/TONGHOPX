@@ -99,7 +99,7 @@ function runScheduledRefresh_() {
   try {
     var r = refreshAll_();
     state.state = r.error ? "error" : "done";
-    state.message = r.message; state.count = r.count; state.pushed = r.pushed; state.updatedAt = r.updatedAt; state.warnings = r.warnings;
+    state.message = r.message; state.count = r.count; state.bhl = r.bhl; state.pushed = r.pushed; state.updatedAt = r.updatedAt; state.warnings = r.warnings;
   } catch (err) {
     state.state = "error";
     state.message = err.toString();
@@ -150,7 +150,7 @@ function refreshAll_() {
   var w = parsed.warnings || {};
   w.tabsNotInMaster = w.tabsNotInMaster || []; w.clubsWithoutTab = w.clubsWithoutTab || []; w.emptyTabs = w.emptyTabs || [];
   var result = {
-    count: parsed.data.length, updatedAt: parsed.updatedAt, pushed: false, error: null,
+    count: parsed.data.length, bhl: parsed.data.filter(function (x) { return x.bhl; }).length, updatedAt: parsed.updatedAt, pushed: false, error: null,
     // Script property giới hạn ~9KB nên chỉ giữ tối đa 15 tên mỗi loại để hiển thị trên trang admin
     warnings: {
       tabsNotInMaster: w.tabsNotInMaster.slice(0, 15), tabsNotInMasterTotal: w.tabsNotInMaster.length,

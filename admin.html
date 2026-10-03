@@ -23,6 +23,7 @@
         .step { padding: 10px 14px; border-radius: 8px; background: #f1f4f6; font-size: 0.95rem; }
         .step.ok { background: #eafaf1; color: #1e8449; }
         .step.err { background: #fdedec; color: #c0392b; }
+        .step.warn { background: #fef5e7; color: #b9770e; }
         .hint { margin-top: 20px; font-size: 0.85rem; color: #7f8c8d; line-height: 1.6; }
         a { color: #2980b9; }
     </style>
@@ -97,6 +98,15 @@
             return res.json();
         }
 
+        // Cảnh báo tên CLB không khớp giữa tab CLB và tab DS_CLB_VD (các CLB này sẽ KHÔNG hiện trên Dashboard)
+        function showWarnings(w) {
+            if (!w) return;
+            const list = (names, total) => names.join(' | ') + (total > names.length ? ' ... (và ' + (total - names.length) + ' tên nữa)' : '');
+            if (w.tabsNotInMasterTotal) addStep('Lưu ý: ' + w.tabsNotInMasterTotal + ' tab CLB không có trong DS_CLB_VD nên chưa hiện trên Dashboard: ' + list(w.tabsNotInMaster, w.tabsNotInMasterTotal) + '. Hãy sửa tên tab hoặc thêm CLB vào DS_CLB_VD cho giống nhau.', 'warn');
+            if (w.emptyTabsTotal) addStep('Lưu ý: ' + w.emptyTabsTotal + ' tab CLB khớp tên nhưng chưa có võ sinh nào (cột Họ và tên trống) nên CLB chưa hiện trên Dashboard: ' + list(w.emptyTabs, w.emptyTabsTotal) + '.', 'warn');
+            if (w.clubsWithoutTabTotal) addStep('Lưu ý: ' + w.clubsWithoutTabTotal + ' CLB có trong DS_CLB_VD nhưng chưa có tab khớp tên: ' + list(w.clubsWithoutTab, w.clubsWithoutTabTotal) + '.', 'warn');
+        }
+
         async function refresh() {
             const key = $('adminKey').value;
             if (!key) { addStep('Vui lòng nhập mật khẩu quản trị.', 'err'); return; }
@@ -139,6 +149,7 @@
                     const now = await readPublished();
                     if (now && now.updatedAt === result.updatedAt) {
                         s4.textContent = '4/4 Hoàn tất! Dashboard đã dùng dữ liệu mới (' + now.count + ' võ sinh).'; s4.classList.add('ok');
+                        showWarnings(result.warnings);
                         await showCurrent();
                         return;
                     }

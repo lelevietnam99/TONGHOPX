@@ -705,7 +705,7 @@
         const CLB_ORIGIN = new URL(CLB_SITE).origin;
         const REGION_ORDER = ["Miền Bắc", "Miền Trung", "Miền Nam", "Nước Ngoài"];   // Thứ tự hiển thị
         const REGION_COLOR = { "Miền Bắc": "#3498db", "Miền Trung": "#f1c40f", "Miền Nam": "#2ecc71", "Nước Ngoài": "#9b59b6", "Chưa rõ": "#95a5a6" };
-        let sbGroups = [], sbHasIds = false, sbQuery = '', sbCollapsed = {}, activeClubId = null, clubIdByName = {}, frameTimer = null;
+        let frameReady = false, sbGroups = [], sbHasIds = false, sbQuery = '', sbCollapsed = {}, activeClubId = null, clubIdByName = {}, frameTimer = null;
         try { sbCollapsed = JSON.parse(localStorage.getItem('pqq_sb_collapsed') || '{}') || {}; } catch (e) {}
         const $id = x => document.getElementById(x);
         const fold = s => String(s == null ? '' : s).normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase();   // "bao quang" tìm được "Bảo Quang"
@@ -804,7 +804,7 @@
             $id('cpOpen').href = page; $id('cpErrOpen').href = page; $id('cpAdmin').href = CLB_SITE + 'clb-admin.html?id=' + id;
             const frame = $id('clubFrame');
             if (frame.dataset.id === String(id)) return;                              // Đã tải rồi: quay lại là có ngay
-            frame.dataset.id = String(id);
+            frame.dataset.id = String(id); frameReady = false;
             $id('cpLoading').hidden = false; $id('cpError').hidden = true;
             clearTimeout(frameTimer); frameTimer = setTimeout(showFrameError, 15000);
             // Đổi CLB bằng location.replace để khung nhúng không chen thêm mục vào lịch sử (nút Back vẫn đi theo #clb=...)
@@ -813,13 +813,13 @@
         }
         function showFrameError() { $id('cpLoading').hidden = true; $id('cpError').hidden = false; }
         $id('clubFrame').addEventListener('load', () => {
-            if (!$id('clubFrame').getAttribute('src')) return;
+            if (!$id('clubFrame').getAttribute('src') || frameReady) return;       // Trang CLB báo "sẵn sàng" (lúc DOMContentLoaded) thường TRƯỚC sự kiện load: đã sẵn sàng rồi thì không hẹn báo lỗi nữa
             clearTimeout(frameTimer); frameTimer = setTimeout(showFrameError, 4000);     // Trang CLB phải báo "sẵn sàng" trong 4 giây sau khi khung tải xong
         });
         // Trang CLB (chế độ nhúng) báo cho Dashboard biết nó đã chạy: nhờ vậy phát hiện được trường hợp khung mở ra trang lỗi 404
         window.addEventListener('message', e => {
             if (e.origin !== CLB_ORIGIN || e.source !== $id('clubFrame').contentWindow) return;
-            if (e.data && e.data.type === 'clb-ready') { clearTimeout(frameTimer); $id('cpLoading').hidden = true; $id('cpError').hidden = true; }
+            if (e.data && e.data.type === 'clb-ready') { frameReady = true; clearTimeout(frameTimer); $id('cpLoading').hidden = true; $id('cpError').hidden = true; }
         });
 
         // ================= THANH BÊN PHẢI: DS BAN HUẤN LUYỆN BA MIỀN =================

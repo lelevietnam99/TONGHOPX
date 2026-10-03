@@ -250,7 +250,7 @@
             <div class="sb-search"><i class="fas fa-search"></i><input type="search" id="sbSearch" placeholder="Tìm câu lạc bộ..." aria-label="Tìm câu lạc bộ"></div>
         </div>
         <a class="sb-home active" id="sbHome" href="#tong-quan"><i class="fas fa-chart-pie"></i> Tổng quan <span class="ct" id="sbHomeCount">0</span></a>
-        <div class="sb-note" id="sbNote" hidden>Chưa mở được trang từng CLB vì dữ liệu chưa có mã CLB. Hãy bấm <b>Cập nhật dữ liệu</b> ở trang quản trị (admin.html) rồi tải lại trang.</div>
+        <div class="sb-note" id="sbNote" hidden>Chưa mở được trang từng CLB vì dữ liệu chưa có mã CLB. Hãy bấm <b>Cập nhật dữ liệu</b> ở trang quản trị (admin.html), sau đó <a href="#" id="sbReload" style="color:inherit;font-weight:800">xóa bản lưu cũ và tải lại</a>.</div>
         <nav id="sbNav"></nav>
     </aside>
     <div class="sb-backdrop" id="sbBackdrop"></div>
@@ -358,7 +358,7 @@
         const DATA_URL = "data.json";
 
         // Cache trên trình duyệt. Đổi số v2 -> v3 nếu sau này đổi cấu trúc dữ liệu để buộc mọi máy tải lại.
-        const CACHE_KEY = "pqq_dashboard_cache_v2";
+        const CACHE_KEY = "pqq_dashboard_cache_v3";
 
         let allStudentsData = []; 
         let dataStats = {};       
@@ -419,7 +419,8 @@
                 // Âm thầm kiểm tra dữ liệu mới, chỉ vẽ lại khi có thay đổi.
                 remotePromise.then(result => {
                     writeLocalCache(result);
-                    if (!result.updatedAt || result.updatedAt !== cached.updatedAt) {
+                    const cachedOld = cached.data.length > 0 && !(cached.data[0].clubId > 0);   // Bản lưu cũ chưa có mã CLB: luôn vẽ lại bằng dữ liệu mới
+                    if (!result.updatedAt || result.updatedAt !== cached.updatedAt || cachedOld) {
                         initDashboard(result.data, result.updatedAt);
                     }
                 }).catch(error => console.warn("Chưa cập nhật được dữ liệu mới, đang dùng bản lưu trên máy:", error));
@@ -752,6 +753,7 @@
             $id('sbHomeCount').textContent = allStudentsData.length;
         }
 
+        $id('sbReload').addEventListener('click', e => { e.preventDefault(); try { Object.keys(localStorage).filter(k => k.indexOf('pqq_dashboard_cache') === 0).forEach(k => localStorage.removeItem(k)); } catch (x) {} location.reload(); });
         $id('sbSearch').addEventListener('input', e => { sbQuery = e.target.value; renderSidebar(); });
         $id('sbNav').addEventListener('click', e => {
             const b = e.target.closest('[data-toggle]'); if (!b) return;

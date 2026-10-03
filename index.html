@@ -101,6 +101,73 @@
         .progress-bar { height: 100%; width: 0%; background: linear-gradient(90deg, #27ae60, #2ecc71); border-radius: 20px; transition: width 0.3s ease; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 0.95rem; text-shadow: 1px 1px 2px rgba(0,0,0,0.4); background-image: linear-gradient( 45deg, rgba(255, 255, 255, 0.2) 25%, transparent 25%, transparent 50%, rgba(255, 255, 255, 0.2) 50%, rgba(255, 255, 255, 0.2) 75%, transparent 75%, transparent ); background-size: 1rem 1rem; animation: progress-stripes 1s linear infinite; }
         @keyframes progress-stripes { from { background-position: 1rem 0; } to { background-position: 0 0; } }
         .progress-status { margin-top: 15px; color: #27ae60; font-weight: bold; font-size: 1.1rem; letter-spacing: 0.5px; }
+
+        /* ===== THANH BÊN: DANH SÁCH CLB THEO MIỀN ===== */
+        .layout { display: grid; grid-template-columns: 300px minmax(0, 1fr); align-items: start; }
+        .main-col { min-width: 0; }
+        .sidebar { position: sticky; top: var(--topbar-h, 72px); height: calc(100vh - var(--topbar-h, 72px)); overflow-y: auto; background: #fff; border-right: 1px solid var(--border); box-shadow: 2px 0 10px rgba(0,0,0,0.03); padding-bottom: 24px; scrollbar-width: thin; }
+        .sb-head { position: sticky; top: 0; z-index: 2; background: #fff; padding: 16px 16px 12px; border-bottom: 1px solid var(--border); }
+        .sb-title { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; font-weight: 800; font-size: 1.05rem; color: var(--primary); }
+        .sb-search { position: relative; }
+        .sb-search i { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #aab4bd; font-size: .85rem; }
+        .sb-search input { width: 100%; padding: 9px 12px 9px 34px; border: 2px solid #e6eaee; border-radius: 20px; outline: none; font-size: .9rem; }
+        .sb-search input:focus { border-color: #3498db; }
+        .sb-home { display: flex; align-items: center; gap: 10px; margin: 10px 8px 4px; padding: 10px 12px; border-radius: 10px; text-decoration: none; color: var(--primary); font-weight: 700; border-left: 3px solid transparent; }
+        .sb-home .ct { margin-left: auto; font-size: .76rem; font-weight: 800; background: #ecf0f1; color: #566573; padding: 2px 9px; border-radius: 10px; }
+        .sb-home:hover { background: #f4f6f9; }
+        .sb-home.active, .sb-club.active { background: #fff4e8; border-left-color: var(--secondary); }
+        .sb-region { margin-top: 8px; }
+        .sb-region-btn { width: 100%; display: flex; align-items: center; gap: 9px; padding: 10px 16px; background: none; border: 0; cursor: pointer; text-align: left; font-weight: 800; font-size: .8rem; letter-spacing: .5px; text-transform: uppercase; color: var(--primary); }
+        .sb-region-btn:hover { background: #f8f9fa; }
+        .sb-dot { width: 10px; height: 10px; border-radius: 50%; flex: 0 0 auto; }
+        .sb-region-btn .meta { margin-left: auto; font-weight: 700; font-size: .74rem; letter-spacing: 0; text-transform: none; color: #95a5a6; white-space: nowrap; }
+        .sb-region-btn .chev { color: #95a5a6; font-size: .7rem; transition: transform .2s; }
+        .sb-region.collapsed .chev { transform: rotate(-90deg); }
+        .sb-region.collapsed .sb-list { display: none; }
+        .sb-list { list-style: none; }
+        .sb-club { display: flex; align-items: center; gap: 8px; margin: 0 8px; padding: 8px 12px 8px 30px; border-radius: 8px; text-decoration: none; color: #34495e; font-size: .92rem; border-left: 3px solid transparent; }
+        .sb-club:hover { background: #f4f6f9; }
+        .sb-club .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .sb-club .ct { font-size: .74rem; font-weight: 800; background: #ecf0f1; color: #566573; padding: 2px 8px; border-radius: 10px; }
+        .sb-club.active { color: var(--primary); font-weight: 700; }
+        .sb-club.active .ct { background: var(--secondary); color: #fff; }
+        .sb-club.disabled { opacity: .55; cursor: default; }
+        .sb-empty { padding: 18px 16px; font-size: .88rem; color: #7f8c8d; text-align: center; }
+        .sb-note { margin: 10px 12px; padding: 10px 12px; border-radius: 8px; background: #fef5e7; color: #9a6a0a; font-size: .82rem; line-height: 1.45; }
+        .sb-toggle { display: none; align-items: center; gap: 6px; background: rgba(255,255,255,.15); color: #fff; border: 0; border-radius: 8px; padding: 8px 12px; cursor: pointer; font-weight: 700; font-size: .9rem; }
+        .sb-backdrop { display: none; }
+        .club-link { color: inherit; text-decoration: none; border-bottom: 1px dashed #b8c2cc; }
+        .club-link:hover { color: var(--secondary); border-bottom-color: var(--secondary); }
+
+        /* Khung hiện trang của từng CLB */
+        .club-panel { min-width: 0; }
+        .cp-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 18px; background: #fff; border-bottom: 1px solid var(--border); min-height: 54px; }
+        .cp-bar h2 { font-size: 1.1rem; color: var(--primary); }
+        .cp-region { padding: 3px 11px; border-radius: 999px; font-size: .78rem; font-weight: 800; background: #ecf0f1; color: var(--primary); white-space: nowrap; }
+        .cp-grow { flex: 1; }
+        .cp-btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 13px; border-radius: 16px; border: 0; background: #ecf0f1; color: var(--primary); text-decoration: none; font-weight: 700; font-size: .85rem; cursor: pointer; }
+        .cp-btn:hover { background: var(--primary); color: #fff; }
+        .cp-back { display: none; }
+        .cp-frame-wrap { position: relative; }
+        .cp-frame { display: block; width: 100%; height: calc(100vh - var(--topbar-h, 72px) - 55px); border: 0; background: var(--bg-color); }
+        .cp-overlay { position: absolute; inset: 0; z-index: 2; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; background: rgba(244,246,249,.94); color: var(--primary); font-weight: 700; text-align: center; padding: 20px; }
+        .cp-overlay[hidden] { display: none; }
+        body.in-club .search-box { visibility: hidden; }
+
+        @media (max-width: 900px) {
+            .layout { grid-template-columns: minmax(0, 1fr); }
+            .sb-toggle { display: inline-flex; }
+            .sidebar { position: fixed; z-index: 120; left: 0; top: var(--topbar-h, 72px); bottom: 0; height: auto; width: min(86vw, 330px); transform: translateX(-105%); transition: transform .25s ease; box-shadow: 6px 0 24px rgba(0,0,0,.25); }
+            .sidebar.open { transform: none; }
+            .sb-backdrop.open { display: block; position: fixed; inset: var(--topbar-h, 72px) 0 0 0; z-index: 110; background: rgba(15,23,42,.45); }
+            .cp-back { display: inline-flex; }
+            .topbar { flex-wrap: wrap; padding: 10px 14px; gap: 10px; }
+            .topbar-actions { flex-wrap: wrap; gap: 8px; }
+            .topbar .btn-progress-update { padding: 6px 12px; font-size: .78rem; }
+            .search-box { flex: 1 1 100%; } .search-box input { width: 100%; }
+            .container { padding: 16px; }
+            .stats-grid { grid-template-columns: repeat(2, 1fr); } .chart-section { grid-template-columns: 1fr; }
+        }
     </style>
 </head>
 <body>
@@ -123,7 +190,10 @@
     </div>
 
     <div class="topbar" id="topbarArea" style="display: none;">
-        <div class="logo">PQQ <span>Dashboard</span></div>
+        <div style="display:flex;align-items:center;gap:12px">
+            <button class="sb-toggle" id="sbToggle" type="button" aria-label="Mở danh sách câu lạc bộ" aria-expanded="false" aria-controls="sidebar"><i class="fas fa-bars"></i> CLB</button>
+            <div class="logo">PQQ <span>Dashboard</span></div>
+        </div>
         <div class="topbar-actions">
             <a href="https://lelevietnam99.github.io/DANHSACHTHITHANGDAI_CHINHTHUC/" class="btn-progress-update" style="background: linear-gradient(135deg, #e67e22, #d35400);" target="_blank">
                 <i class="fas fa-list-check"></i> Danh Sách Thi Thăng Đai
@@ -150,6 +220,18 @@
         </div>
     </div>
 
+    <div class="layout" id="layout" style="display: none;">
+    <aside class="sidebar" id="sidebar" aria-label="Danh sách câu lạc bộ theo miền">
+        <div class="sb-head">
+            <div class="sb-title"><i class="fas fa-sitemap"></i> Câu lạc bộ</div>
+            <div class="sb-search"><i class="fas fa-search"></i><input type="search" id="sbSearch" placeholder="Tìm câu lạc bộ..." aria-label="Tìm câu lạc bộ"></div>
+        </div>
+        <a class="sb-home active" id="sbHome" href="#tong-quan"><i class="fas fa-chart-pie"></i> Tổng quan <span class="ct" id="sbHomeCount">0</span></a>
+        <div class="sb-note" id="sbNote" hidden>Chưa mở được trang từng CLB vì dữ liệu chưa có mã CLB. Hãy bấm <b>Cập nhật dữ liệu</b> ở trang quản trị (admin.html) rồi tải lại trang.</div>
+        <nav id="sbNav"></nav>
+    </aside>
+    <div class="sb-backdrop" id="sbBackdrop"></div>
+    <main class="main-col" id="mainCol">
     <div class="container" id="dashboardContent">
         <div class="stats-grid">
             <div class="stat-card"><div class="stat-title">Tổng Võ Sinh</div><div class="stat-value" id="totalStudents">0</div></div>
@@ -199,6 +281,28 @@
                 </button>
             </div>
         </div>
+    </div>
+
+    <section class="club-panel" id="clubPanel" hidden>
+        <div class="cp-bar">
+            <button class="cp-btn cp-back" id="cpBack" type="button"><i class="fas fa-arrow-left"></i> Tổng quan</button>
+            <h2 id="cpTitle"></h2><span class="cp-region" id="cpRegion"></span>
+            <span class="cp-grow"></span>
+            <a class="cp-btn" id="cpOpen" target="_blank" rel="noopener"><i class="fas fa-up-right-from-square"></i> Mở trang riêng</a>
+            <a class="cp-btn" id="cpAdmin" target="_blank" rel="noopener"><i class="fas fa-lock"></i> Quản lý CLB</a>
+        </div>
+        <div class="cp-frame-wrap">
+            <div class="cp-overlay" id="cpLoading"><i class="fas fa-spinner fa-spin"></i> Đang tải trang câu lạc bộ...</div>
+            <div class="cp-overlay" id="cpError" hidden>
+                <div><i class="fas fa-triangle-exclamation" style="font-size:1.8rem;color:#e67e22"></i></div>
+                <div>Không mở được trang CLB trong khung này.</div>
+                <div style="font-weight:500;font-size:.88rem;color:#7f8c8d;max-width:420px">Hãy kiểm tra GitHub Pages của repo CLBX đã được bật chưa, hoặc mở trang CLB ở tab mới.</div>
+                <a class="cp-btn" id="cpErrOpen" target="_blank" rel="noopener"><i class="fas fa-up-right-from-square"></i> Mở trang CLB ở tab mới</a>
+            </div>
+            <iframe class="cp-frame" id="clubFrame" title="Trang của câu lạc bộ"></iframe>
+        </div>
+    </section>
+    </main>
     </div>
 
     <div class="modal-overlay" id="studentModal" aria-hidden="true">
@@ -332,7 +436,8 @@
 
             document.getElementById('loader').style.display = 'none';
             document.getElementById('topbarArea').style.display = 'flex';
-            document.getElementById('dashboardContent').style.display = 'block';
+            document.getElementById('layout').style.display = 'grid';
+            applyRoute();   // Hiện "Tổng quan" hoặc trang CLB theo địa chỉ (#clb=12)
         }
 
         async function loadFromNetwork() {
@@ -372,6 +477,7 @@
             renderChart();
             renderTable(filterStudents(document.getElementById('searchInput').value));
             document.getElementById('lastUpdated').innerText = formatUpdatedAt(updatedAt);
+            renderSidebar();
         }
 
         function processStats() {
@@ -432,7 +538,7 @@
                     <div class="club-item">
                         <span>
                             <span class="stt-box">${index + 1}.</span>
-                            ${clubName}
+                            ${clubIdByName[clubName] ? `<a class="club-link" href="#clb=${clubIdByName[clubName]}" title="Mở trang CLB">${esc(clubName)}</a>` : esc(clubName)}
                         </span>
                         <span class="count">${count} võ sinh</span>
                     </div>`).join('');
@@ -561,6 +667,125 @@
         });
         document.getElementById('searchInput').addEventListener('keyup', function(e) {
             renderTable(filterStudents(e.target.value), true); // Chạy lại bảng từ đầu với dữ liệu đã lọc
+        });
+
+        // ================= THANH BÊN: CLB THEO MIỀN + TRANG TỪNG CLB =================
+        // Mỗi CLB có trang riêng ở repo CLBX; bấm vào CLB thì trang đó hiện ngay bên phải (khung nhúng ?embed=1).
+        const CLB_SITE = "https://lelevietnam99.github.io/CLBX/";
+        const CLB_ORIGIN = new URL(CLB_SITE).origin;
+        const REGION_ORDER = ["Miền Bắc", "Miền Trung", "Miền Nam", "Nước Ngoài"];   // Thứ tự hiển thị
+        const REGION_COLOR = { "Miền Bắc": "#3498db", "Miền Trung": "#f1c40f", "Miền Nam": "#2ecc71", "Nước Ngoài": "#9b59b6", "Chưa rõ": "#95a5a6" };
+        let sbGroups = [], sbHasIds = false, sbQuery = '', sbCollapsed = {}, activeClubId = null, clubIdByName = {}, frameTimer = null;
+        try { sbCollapsed = JSON.parse(localStorage.getItem('pqq_sb_collapsed') || '{}') || {}; } catch (e) {}
+        const $id = x => document.getElementById(x);
+        const fold = s => String(s == null ? '' : s).normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase();   // "bao quang" tìm được "Bảo Quang"
+
+        function buildSidebarData() {
+            const byId = {}, noId = {};
+            allStudentsData.forEach(st => {
+                const region = REGION_COLOR[st.region] ? st.region : 'Chưa rõ';
+                if (st.clubId > 0) {
+                    const c = byId[st.clubId] || (byId[st.clubId] = { id: st.clubId, name: st.club, region, count: 0 }); c.count++;
+                } else {                                   // data.json bản cũ chưa có mã CLB
+                    const key = region + '|' + st.club, c = noId[key] || (noId[key] = { id: null, name: st.club, region, count: 0 }); c.count++;
+                }
+            });
+            clubIdByName = {}; Object.values(byId).forEach(c => { clubIdByName[c.name] = c.id; });
+            sbHasIds = Object.keys(byId).length > 0;
+            const clubs = Object.values(byId).concat(Object.values(noId));
+            sbGroups = REGION_ORDER.concat(['Chưa rõ']).map(r => {
+                const list = clubs.filter(c => c.region === r).sort((a, b) => (a.id || 1e9) - (b.id || 1e9) || a.name.localeCompare(b.name, 'vi'));   // Trong mỗi miền: theo STT
+                return { region: r, clubs: list, students: list.reduce((n, c) => n + c.count, 0) };
+            }).filter(g => g.clubs.length);
+        }
+
+        function clubItem(c) {
+            if (!c.id) return `<span class="sb-club disabled" title="${esc(c.name)}"><span class="nm">${esc(c.name)}</span><span class="ct">${c.count}</span></span>`;
+            return `<a class="sb-club ${c.id === activeClubId ? 'active' : ''}" href="#clb=${c.id}" data-club="${c.id}" title="${esc(c.name)}"><span class="nm">${esc(c.name)}</span><span class="ct">${c.count}</span></a>`;
+        }
+
+        function renderSidebar() {
+            buildSidebarData();
+            const q = fold(sbQuery).trim();
+            const html = sbGroups.map(g => {
+                const shown = g.clubs.filter(c => !q || fold(c.name).includes(q) || String(c.id) === q);
+                if (!shown.length) return '';
+                const collapsed = !q && !!sbCollapsed[g.region];        // Đang tìm kiếm thì luôn mở các miền
+                return `<section class="sb-region ${collapsed ? 'collapsed' : ''}">
+                    <button class="sb-region-btn" type="button" data-toggle="${esc(g.region)}" aria-expanded="${!collapsed}">
+                        <span class="sb-dot" style="background:${REGION_COLOR[g.region]}"></span><span>${esc(g.region)}</span>
+                        <span class="meta">${g.clubs.length} CLB · ${g.students} võ sinh</span><i class="fas fa-chevron-down chev"></i></button>
+                    <ul class="sb-list">${shown.map(c => `<li>${clubItem(c)}</li>`).join('')}</ul></section>`;
+            }).join('');
+            $id('sbNav').innerHTML = html || '<div class="sb-empty">Không có CLB phù hợp.</div>';
+            $id('sbNote').hidden = sbHasIds || !sbGroups.length;
+            $id('sbHomeCount').textContent = allStudentsData.length;
+        }
+
+        $id('sbSearch').addEventListener('input', e => { sbQuery = e.target.value; renderSidebar(); });
+        $id('sbNav').addEventListener('click', e => {
+            const b = e.target.closest('[data-toggle]'); if (!b) return;
+            sbCollapsed[b.dataset.toggle] = !sbCollapsed[b.dataset.toggle];
+            try { localStorage.setItem('pqq_sb_collapsed', JSON.stringify(sbCollapsed)); } catch (x) {}
+            renderSidebar();
+        });
+
+        // ----- Ngăn kéo trên điện thoại -----
+        function setDrawer(open) {
+            $id('sidebar').classList.toggle('open', open); $id('sbBackdrop').classList.toggle('open', open);
+            $id('sbToggle').setAttribute('aria-expanded', String(open));
+        }
+        $id('sbToggle').addEventListener('click', () => setDrawer(!$id('sidebar').classList.contains('open')));
+        $id('sbBackdrop').addEventListener('click', () => setDrawer(false));
+        document.addEventListener('keydown', e => { if (e.key === 'Escape') setDrawer(false); });
+        new ResizeObserver(() => document.documentElement.style.setProperty('--topbar-h', $id('topbarArea').offsetHeight + 'px')).observe($id('topbarArea'));
+
+        // ----- Điều hướng bằng địa chỉ: #clb=12 mở CLB số 12, còn lại là Tổng quan (dùng được nút Back, chia sẻ link) -----
+        function applyRoute() {
+            if ($id('layout').style.display === 'none') return;                       // Dữ liệu chưa sẵn sàng
+            const m = location.hash.match(/^#clb=(\d+)$/), id = m ? Number(m[1]) : null;
+            const changed = id !== activeClubId; activeClubId = id;
+            document.body.classList.toggle('in-club', id !== null);
+            $id('dashboardContent').style.display = id === null ? 'block' : 'none';
+            $id('clubPanel').hidden = id === null;
+            $id('sbHome').classList.toggle('active', id === null);
+            if (id !== null) {
+                const group = sbGroups.find(g => g.clubs.some(c => c.id === id));
+                if (group && sbCollapsed[group.region]) { sbCollapsed[group.region] = false; renderSidebar(); }   // Mở sẵn miền chứa CLB đang xem
+                openClubFrame(id);
+            }
+            document.querySelectorAll('.sb-club[data-club]').forEach(a => a.classList.toggle('active', Number(a.dataset.club) === id));
+            const active = document.querySelector('.sb-club.active'); if (active) active.scrollIntoView({ block: 'nearest' });
+            setDrawer(false);
+            if (changed) window.scrollTo(0, 0);
+        }
+        window.addEventListener('hashchange', applyRoute);
+        $id('cpBack').addEventListener('click', () => { location.hash = 'tong-quan'; });
+
+        function openClubFrame(id) {
+            const club = sbGroups.flatMap(g => g.clubs).find(c => c.id === id);
+            $id('cpTitle').textContent = club ? club.name : 'CLB số ' + id;
+            const reg = $id('cpRegion'); reg.textContent = club ? club.region : ''; reg.style.display = club ? '' : 'none';
+            const page = CLB_SITE + 'clb.html?id=' + id;
+            $id('cpOpen').href = page; $id('cpErrOpen').href = page; $id('cpAdmin').href = CLB_SITE + 'clb-admin.html?id=' + id;
+            const frame = $id('clubFrame');
+            if (frame.dataset.id === String(id)) return;                              // Đã tải rồi: quay lại là có ngay
+            frame.dataset.id = String(id);
+            $id('cpLoading').hidden = false; $id('cpError').hidden = true;
+            clearTimeout(frameTimer); frameTimer = setTimeout(showFrameError, 15000);
+            // Đổi CLB bằng location.replace để khung nhúng không chen thêm mục vào lịch sử (nút Back vẫn đi theo #clb=...)
+            if (frame.getAttribute('src')) { try { frame.contentWindow.location.replace(page + '&embed=1'); return; } catch (e) {} }
+            frame.src = page + '&embed=1';
+        }
+        function showFrameError() { $id('cpLoading').hidden = true; $id('cpError').hidden = false; }
+        $id('clubFrame').addEventListener('load', () => {
+            if (!$id('clubFrame').getAttribute('src')) return;
+            clearTimeout(frameTimer); frameTimer = setTimeout(showFrameError, 4000);     // Trang CLB phải báo "sẵn sàng" trong 4 giây sau khi khung tải xong
+        });
+        // Trang CLB (chế độ nhúng) báo cho Dashboard biết nó đã chạy: nhờ vậy phát hiện được trường hợp khung mở ra trang lỗi 404
+        window.addEventListener('message', e => {
+            if (e.origin !== CLB_ORIGIN || e.source !== $id('clubFrame').contentWindow) return;
+            if (e.data && e.data.type === 'clb-ready') { clearTimeout(frameTimer); $id('cpLoading').hidden = true; $id('cpError').hidden = true; }
         });
     </script>
 </body>

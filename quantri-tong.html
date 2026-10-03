@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
+    <title>Quản trị tổng - Các CLB</title>
+    <link rel="stylesheet" href="clb.css">
+</head>
+<body>
+    <header class="topbar">
+        <a class="logo" href="index.html">PQQ <span>Dashboard</span></a>
+        <div class="crumb">Quản trị tổng · Mật khẩu & nhật ký các CLB</div>
+        <div class="actions" id="topActions" hidden><button class="btn btn-ghost btn-sm" id="btnLock">🔒 Khóa lại</button></div>
+    </header>
+
+    <main class="container" id="app"></main>
+
+    <!-- Hiện mật khẩu (một lần) -->
+    <div class="modal-overlay" id="pwModal" aria-hidden="true">
+        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="pwTitle">
+            <button class="modal-x" data-close="pwModal" aria-label="Đóng">&times;</button>
+            <h3 id="pwTitle">🔑 Mật khẩu mới</h3>
+            <p id="pwClub" style="font-weight:700"></p>
+            <div id="pwValue" style="font-family:Consolas,monospace;font-size:1.6rem;letter-spacing:1px;background:#f0fdf4;border:2px dashed var(--ok);border-radius:10px;padding:14px;text-align:center;margin:12px 0;user-select:all;word-break:break-all"></div>
+            <div class="warn-box">⚠️ Mật khẩu <b>chỉ hiển thị một lần</b>. Hệ thống chỉ lưu bản mã hóa nên không thể xem lại. Hãy sao chép và gửi cho quản lý CLB ngay.</div>
+            <div class="modal-foot">
+                <button class="btn" id="pwCopy" type="button">📋 Sao chép mật khẩu</button>
+                <button class="btn btn-primary" id="pwCopyMsg" type="button">📨 Sao chép tin nhắn gửi quản lý</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Đặt mật khẩu thủ công -->
+    <div class="modal-overlay" id="manualModal" aria-hidden="true">
+        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="manualTitle">
+            <button class="modal-x" data-close="manualModal" aria-label="Đóng">&times;</button>
+            <h3 id="manualTitle">✏️ Đặt mật khẩu thủ công</h3>
+            <form id="manualForm" novalidate>
+                <label class="lbl" for="manualPw">Mật khẩu mới (từ 8 ký tự)</label>
+                <input class="input" id="manualPw" type="text" autocomplete="off" minlength="8" data-autofocus>
+                <p class="err-text" id="manualErr" role="alert" style="margin-top:10px" hidden></p>
+                <div class="modal-foot"><button class="btn" type="button" data-close="manualModal">Hủy</button><button class="btn btn-primary" type="submit">Lưu mật khẩu</button></div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Kết quả cấp hàng loạt -->
+    <div class="modal-overlay" id="bulkModal" aria-hidden="true">
+        <div class="modal xwide" role="dialog" aria-modal="true" aria-labelledby="bulkTitle">
+            <button class="modal-x" data-close="bulkModal" aria-label="Đóng">&times;</button>
+            <h3 id="bulkTitle">🔑 Mật khẩu vừa cấp</h3>
+            <div class="warn-box" style="margin-bottom:12px">⚠️ Danh sách này <b>chỉ hiển thị một lần</b>. Hãy bấm “Tải file CSV” và cất giữ cẩn thận (đừng đăng lên nơi công khai).</div>
+            <div class="table-wrap" style="max-height:50vh;overflow:auto"><table class="tbl"><thead><tr><th>STT</th><th>Tên CLB</th><th>Khu vực</th><th>Mật khẩu</th></tr></thead><tbody id="bulkRows"></tbody></table></div>
+            <div class="modal-foot"><button class="btn" data-close="bulkModal" type="button">Đóng</button><button class="btn btn-primary" id="bulkCsv" type="button">⬇️ Tải file CSV</button></div>
+        </div>
+    </div>
+
+    <script src="clb-config.js"></script>
+    <script src="clb-common.js"></script>
+    <script>
+    (function () {
+        const $ = id => document.getElementById(id);
+        const app = $('app');
+        let superKey = '';            // Chỉ giữ trong bộ nhớ: tải lại trang là phải nhập lại
+        let clubs = [], tab = 'pw', filter = '', target = null, lastBulk = [], busy = false;
+        const ACTION = { create: 'Thêm võ sinh', update: 'Sửa thông tin', grade: 'Chấm tiến độ', delete: 'Xóa võ sinh', restore: 'Khôi phục võ sinh', set_password: 'Đặt/đổi mật khẩu', clear_password: 'Xóa mật khẩu', bulk_password: 'Cấp mật khẩu hàng loạt' };
+
+        function showGate(message) {
+            $('topActions').hidden = true; superKey = '';
+            app.innerHTML = `<div class="card login-card"><div style="font-size:2.2rem">🛡️</div><h1 class="page-title">Quản trị tổng</h1><div class="sub">Chỉ dành cho người quản lý hệ thống</div>
+                <form id="gate" novalidate><label class="lbl" for="sk">Mật khẩu quản trị tổng (SUPER_KEY)</label>
+                <input class="input" id="sk" type="password" autocomplete="off" required>
+                <p class="err-text" id="gateErr" role="alert" style="margin-top:10px" ${message ? '' : 'hidden'}>${CLB.esc(message || '')}</p>
+                <button class="btn btn-primary" id="gateBtn" style="width:100%;margin-top:16px" type="submit">Vào</button></form></div>`;
+            $('sk').focus();
+            $('gate').onsubmit = async e => {
+                e.preventDefault(); const k = $('sk').value; if (!k) return;
+                const btn = $('gateBtn'); btn.disabled = true; btn.textContent = 'Đang kiểm tra...'; $('gateErr').hidden = true;
+                superKey = k;
+                try { const r = await CLB.post({ action: 'sa_clubs', superKey }); clubs = r.clubs; $('topActions').hidden = false; render(); }
+                catch (ex) { superKey = ''; $('gateErr').textContent = ex.message; $('gateErr').hidden = false; btn.disabled = false; btn.textContent = 'Vào'; $('sk').select(); }
+            };
+        }
+        $('btnLock').onclick = () => showGate();
+
+        async function call(body) {
+            try { return await CLB.post(Object.assign({ superKey }, body)); }
+            catch (e) { if (e.code === 'AUTH' || e.code === 'LOCKED') showGate(e.message); throw e; }
+        }
+        async function refresh() { const r = await call({ action: 'sa_clubs' }); clubs = r.clubs; render(); }
+
+        function render() {
+            const without = clubs.filter(c => !c.hasPassword).length, noTab = clubs.filter(c => !c.hasTab).length;
+            app.innerHTML = `
+                <div class="card">
+                    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;justify-content:space-between">
+                        <div><h1 class="page-title">Quản trị các CLB</h1><div class="sub">${clubs.length} CLB · <b>${clubs.length - without}</b> đã có mật khẩu · <b>${without}</b> chưa có${noTab ? ` · <span style="color:var(--danger)"><b>${noTab}</b> chưa có tab trong Google Sheets</span>` : ''}</div></div>
+                        <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-primary" id="btnBulk" ${without ? '' : 'disabled'}>🔑 Cấp mật khẩu cho ${without} CLB chưa có</button><button class="btn" id="btnRefresh">🔄 Tải lại</button></div>
+                    </div>
+                    <div class="tabs" style="margin-top:16px"><button class="tab ${tab === 'pw' ? 'on' : ''}" data-tab="pw">Mật khẩu & liên kết</button><button class="tab ${tab === 'log' ? 'on' : ''}" data-tab="log">Nhật ký thay đổi</button></div>
+                    <div id="panel" style="margin-top:14px"></div>
+                </div>`;
+            $('btnBulk').onclick = bulk; $('btnRefresh').onclick = () => (tab === 'log' ? showLog() : refresh()).catch(() => {});
+            app.querySelector('.tabs').onclick = e => { const t = e.target.closest('.tab'); if (!t) return; tab = t.dataset.tab; render(); };
+            tab === 'log' ? showLog() : showClubs();
+        }
+
+        function showClubs() {
+            $('panel').innerHTML = `<input class="input" id="flt" type="search" placeholder="Lọc theo tên CLB..." value="${CLB.esc(filter)}" style="max-width:340px;margin-bottom:12px">
+                <div class="table-wrap"><table class="tbl"><thead><tr><th>STT</th><th>Tên CLB</th><th class="hide-sm">Khu vực</th><th>Mật khẩu</th><th class="hide-sm">Liên kết</th><th>Thao tác</th></tr></thead><tbody id="body"></tbody></table></div>`;
+            $('flt').oninput = CLB.debounce(e => { filter = e.target.value; rowsHtml(); }, 120);
+            rowsHtml();
+        }
+        function rowsHtml() {
+            const q = CLB.norm(filter);
+            $('body').innerHTML = clubs.filter(c => !q || CLB.norm(c.name).includes(q) || String(c.id) === q).map(c => `<tr data-id="${c.id}">
+                <td class="num">${c.id}</td>
+                <td><span class="name">${CLB.esc(c.name)}</span>${c.hasTab ? '' : '<div class="err-text" style="font-size:.8rem">⚠ Chưa có tab khớp tên trong Google Sheets</div>'}</td>
+                <td class="hide-sm"><span class="badge region-${CLB.esc(c.region.replace(/\s+/g, '-'))}">${CLB.esc(c.region)}</span></td>
+                <td>${c.hasPassword ? '<span class="yes">✔ Đã cấp</span>' + (c.passwordSetAt ? `<div class="sub">${CLB.esc(new Date(c.passwordSetAt).toLocaleDateString('vi-VN'))}</div>` : '') : '<span class="no">Chưa cấp</span>'}</td>
+                <td class="hide-sm"><button class="btn btn-sm" data-act="copyView">Link xem</button> <button class="btn btn-sm" data-act="copyAdmin">Link quản lý</button></td>
+                <td style="white-space:nowrap"><button class="btn btn-sm btn-primary" data-act="gen">${c.hasPassword ? '🔁 Đặt lại' : '🔑 Cấp'}</button>
+                <button class="btn btn-sm" data-act="manual" title="Tự đặt mật khẩu">✏️</button>
+                ${c.hasPassword ? '<button class="btn btn-sm" data-act="clear" title="Xóa mật khẩu (khóa quyền quản lý)">🗑️</button>' : ''}</td></tr>`).join('') || '<tr><td colspan="6"><div class="state" style="padding:24px">Không có CLB phù hợp.</div></td></tr>';
+        }
+
+        document.addEventListener('click', async e => {
+            const b = e.target.closest('button[data-act]'); if (!b || !b.closest('#body')) return;
+            const c = clubs.find(x => x.id === Number(b.closest('tr').dataset.id)); if (!c) return;
+            const act = b.dataset.act;
+            if (act === 'copyView') { await CLB.copy(CLB.pageUrl('clb.html', c.id)); return CLB.toast('Đã sao chép link trang xem.', 'ok'); }
+            if (act === 'copyAdmin') { await CLB.copy(CLB.pageUrl('clb-admin.html', c.id)); return CLB.toast('Đã sao chép link trang quản lý.', 'ok'); }
+            if (act === 'manual') { target = c; $('manualPw').value = ''; $('manualErr').hidden = true; CLB.openModal('manualModal'); return; }
+            if (busy) return;
+            if (act === 'gen') {
+                if (c.hasPassword && !confirm('CLB "' + c.name + '" đã có mật khẩu. Đặt lại sẽ làm mật khẩu cũ và mọi phiên đăng nhập hiện tại mất hiệu lực. Tiếp tục?')) return;
+                busy = true; try { showPw(await call({ action: 'sa_setpw', id: c.id }), c); await refresh(); } catch (ex) { CLB.toast(ex.message, 'error'); } finally { busy = false; }
+            }
+            if (act === 'clear') {
+                if (!confirm('Xóa mật khẩu của "' + c.name + '"? Quản lý CLB sẽ không đăng nhập được cho đến khi bạn cấp mật khẩu mới.')) return;
+                busy = true; try { await call({ action: 'sa_clearpw', id: c.id }); CLB.toast('Đã xóa mật khẩu.', 'ok'); await refresh(); } catch (ex) { CLB.toast(ex.message, 'error'); } finally { busy = false; }
+            }
+        });
+
+        function showPw(r, c) {
+            target = c; $('pwClub').textContent = r.id + '. ' + r.name; $('pwValue').textContent = r.password; CLB.openModal('pwModal');
+        }
+        $('pwCopy').onclick = async () => { await CLB.copy($('pwValue').textContent); CLB.toast('Đã sao chép mật khẩu.', 'ok'); };
+        $('pwCopyMsg').onclick = async () => {
+            const msg = `Link quản lý dữ liệu CLB ${target.name}:\n${CLB.pageUrl('clb-admin.html', target.id)}\nMật khẩu: ${$('pwValue').textContent}\n(Vui lòng không chia sẻ mật khẩu này cho người khác.)`;
+            await CLB.copy(msg); CLB.toast('Đã sao chép tin nhắn.', 'ok');
+        };
+
+        $('manualForm').onsubmit = async e => {
+            e.preventDefault(); const pw = $('manualPw').value, err = $('manualErr');
+            if (pw.length < 8) { err.textContent = 'Mật khẩu phải từ 8 ký tự trở lên.'; err.hidden = false; return; }
+            try { const r = await call({ action: 'sa_setpw', id: target.id, password: pw }); CLB.closeModal('manualModal'); showPw(r, target); await refresh(); }
+            catch (ex) { err.textContent = ex.message; err.hidden = false; }
+        };
+
+        async function bulk() {
+            if (busy) return; busy = true;
+            try {
+                const r = await call({ action: 'sa_bulkpw' }); lastBulk = r.items;
+                $('bulkRows').innerHTML = r.items.map(i => `<tr><td class="num">${i.id}</td><td class="name">${CLB.esc(i.name)}</td><td>${CLB.esc(i.region)}</td><td style="font-family:Consolas,monospace;font-weight:700">${CLB.esc(i.password)}</td></tr>`).join('');
+                CLB.openModal('bulkModal'); await refresh();
+            } catch (ex) { CLB.toast(ex.message, 'error'); } finally { busy = false; }
+        }
+        $('bulkCsv').onclick = () => {
+            const q = v => '"' + String(v).replace(/"/g, '""') + '"';
+            const lines = [['STT', 'Tên CLB', 'Khu vực', 'Link quản lý', 'Mật khẩu'].map(q).join(',')].concat(lastBulk.map(i => [i.id, i.name, i.region, CLB.pageUrl('clb-admin.html', i.id), i.password].map(q).join(',')));
+            const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+            const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'mat-khau-clb.csv'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+        };
+
+        async function showLog() {
+            $('panel').innerHTML = '<div class="skeleton"></div>';
+            try {
+                const r = await call({ action: 'sa_log', limit: 150 });
+                $('panel').innerHTML = r.items.length ? `<div class="table-wrap"><table class="tbl"><thead><tr><th>Thời gian</th><th>CLB</th><th>Hành động</th><th>Võ sinh</th><th></th></tr></thead><tbody>${r.items.map(i => `<tr><td class="sub" style="white-space:nowrap">${CLB.esc(i.time)}</td><td>${CLB.esc(i.clubName)}</td><td><span class="badge">${CLB.esc(ACTION[i.action] || i.action)}</span></td><td>${CLB.esc(i.student)}</td><td class="sub">${CLB.esc(i.status)}</td></tr>`).join('')}</tbody></table></div>` : '<div class="state">Chưa có thay đổi nào.</div>';
+            } catch (ex) { if (ex.code !== 'AUTH' && ex.code !== 'LOCKED') $('panel').innerHTML = `<div class="error-box">${CLB.esc(ex.message)}</div>`; }
+        }
+
+        showGate();
+    })();
+    </script>
+</body>
+</html>

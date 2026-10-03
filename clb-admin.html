@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
+    <title>Quản lý CLB - Phật Quang Quyền</title>
+    <link rel="stylesheet" href="clb.css">
+</head>
+<body>
+    <header class="topbar">
+        <a class="logo" href="index.html">PQQ <span>Dashboard</span></a>
+        <div class="crumb" id="crumb">Quản lý CLB</div>
+        <div class="actions" id="topActions" hidden>
+            <a class="btn btn-ghost btn-sm" id="linkView" href="#">👁️ Trang xem</a>
+            <button class="btn btn-ghost btn-sm" id="btnLogout">Đăng xuất</button>
+        </div>
+    </header>
+
+    <main class="container" id="app"><div class="card"><div class="skeleton"></div></div></main>
+
+    <!-- Thêm / Sửa -->
+    <div class="modal-overlay" id="formModal" aria-hidden="true">
+        <div class="modal wide" role="dialog" aria-modal="true" aria-labelledby="formTitle">
+            <button class="modal-x" data-close="formModal" aria-label="Đóng">&times;</button>
+            <h3 id="formTitle"></h3>
+            <form id="studentForm" novalidate>
+                <div class="form-grid" id="formFields"></div>
+                <p class="err-text" id="formErr" role="alert" style="margin-top:12px" hidden></p>
+                <div class="modal-foot">
+                    <button type="button" class="btn" data-close="formModal">Hủy</button>
+                    <button type="submit" class="btn btn-primary" id="formSave">💾 Lưu</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Chấm tiến độ -->
+    <div class="modal-overlay" id="gradeModal" aria-hidden="true">
+        <div class="modal xwide" role="dialog" aria-modal="true" aria-labelledby="gradeTitle">
+            <button class="modal-x" data-close="gradeModal" aria-label="Đóng">&times;</button>
+            <h3 id="gradeTitle">📋 Chấm tiến độ</h3>
+            <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:end;margin-bottom:14px">
+                <div style="flex:1;min-width:220px"><label class="lbl" for="gradeBelt">Cấp đai</label><select class="input" id="gradeBelt"></select></div>
+                <button class="btn btn-ok btn-sm" id="gradeAll" type="button">✅ Chọn tất cả</button>
+                <button class="btn btn-danger btn-sm" id="gradeNone" type="button">❌ Bỏ chọn tất cả</button>
+            </div>
+            <div class="grade-summary"><b id="gradeCount"></b><div id="gradeBar"></div></div>
+            <div class="lesson-grid" id="gradeList"></div>
+            <p class="err-text" id="gradeErr" role="alert" style="margin-top:12px" hidden></p>
+            <div class="modal-foot">
+                <button class="btn" data-close="gradeModal" type="button">Đóng</button>
+                <button class="btn btn-ok" id="gradeSave" type="button">💾 Lưu kết quả</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Xác nhận xóa -->
+    <div class="modal-overlay" id="delModal" aria-hidden="true">
+        <div class="modal" role="alertdialog" aria-modal="true" aria-labelledby="delTitle">
+            <h3 id="delTitle">🗑️ Xóa võ sinh?</h3>
+            <p id="delText"></p>
+            <p class="sub" style="margin-top:8px">Dữ liệu được lưu vào <b>Thùng rác</b>, bạn có thể khôi phục lại nếu xóa nhầm.</p>
+            <p class="err-text" id="delErr" role="alert" style="margin-top:10px" hidden></p>
+            <div class="modal-foot">
+                <button class="btn" data-close="delModal" type="button">Hủy</button>
+                <button class="btn btn-danger" id="delOk" type="button">Xóa</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Thùng rác -->
+    <div class="modal-overlay" id="trashModal" aria-hidden="true">
+        <div class="modal wide" role="dialog" aria-modal="true" aria-labelledby="trashTitle">
+            <button class="modal-x" data-close="trashModal" aria-label="Đóng">&times;</button>
+            <h3 id="trashTitle">♻️ Thùng rác - võ sinh đã xóa</h3>
+            <div id="trashBody"></div>
+            <div class="modal-foot"><button class="btn" data-close="trashModal" type="button">Đóng</button></div>
+        </div>
+    </div>
+
+    <script src="clb-config.js"></script>
+    <script src="chuong-trinh.js"></script>
+    <script src="clb-common.js"></script>
+    <script>
+    (function () {
+        const $ = id => document.getElementById(id);
+        const app = $('app'), id = CLB.clubId();
+        let club = null, token = null, fields = [], rows = [], map = null;
+        let ui = { q: '', belt: '', all: false }, editing = null, deleting = null, grading = null, gradeTicks = new Set(), busy = false;
+        const COMPACT = ['stt', 'name', 'dharma', 'birth', 'belt', 'pct', 'gender', 'register', 'note'];
+
+        // ===================== ĐĂNG NHẬP =====================
+        function showFatal(icon, title, text) {
+            app.innerHTML = `<div class="card state"><div class="big">${icon}</div><h2 style="color:var(--primary)">${CLB.esc(title)}</h2><p style="margin:8px 0 16px">${CLB.esc(text)}</p><a class="btn btn-primary" href="index.html">Về Dashboard</a></div>`;
+        }
+
+        async function start() {
+            if (id == null) return showFatal('🔎', 'Thiếu mã CLB', 'Đường link cần có dạng clb-admin.html?id=số-thứ-tự-CLB.');
+            $('linkView').href = 'clb.html?id=' + id;
+            try {
+                const list = await CLB.get({ action: 'clubs' });
+                club = list.clubs.find(c => c.id === id);
+            } catch (e) { return showFatal('⚠️', 'Không kết nối được hệ thống', e.message); }
+            if (!club) return showFatal('🗂️', 'Không tìm thấy CLB', 'Không có CLB nào có STT ' + id + '.');
+            document.title = 'Quản lý ' + club.name;
+            $('crumb').textContent = club.name + ' · Quản lý';
+            token = CLB.session.get(id);
+            token ? loadList() : showLogin();
+        }
+
+        function showLogin(message) {
+            $('topActions').hidden = true;
+            app.innerHTML = `<div class="card login-card">
+                <div style="font-size:2.2rem">🔐</div>
+                <h1 class="page-title">Quản lý CLB</h1>
+                <div class="sub">${CLB.esc(club.name)}</div>
+                <form id="loginForm" novalidate>
+                    <label class="lbl" for="pw">Mật khẩu của CLB</label>
+                    <input class="input" id="pw" type="password" autocomplete="current-password" data-autofocus required>
+                    <p class="err-text" id="loginErr" role="alert" style="margin-top:10px" ${message ? '' : 'hidden'}>${CLB.esc(message || '')}</p>
+                    <button class="btn btn-primary" id="loginBtn" style="width:100%;margin-top:16px" type="submit">Đăng nhập</button>
+                    <p class="hint" style="margin-top:12px;text-align:center">Quên mật khẩu? Vui lòng liên hệ quản trị viên hệ thống để được cấp lại.</p>
+                </form></div>`;
+            $('pw').focus();
+            $('loginForm').onsubmit = async e => {
+                e.preventDefault();
+                const pw = $('pw').value; if (!pw) return;
+                const btn = $('loginBtn'), err = $('loginErr');
+                btn.disabled = true; btn.textContent = 'Đang đăng nhập...'; err.hidden = true;
+                try {
+                    const r = await CLB.post({ action: 'login', id, password: pw });
+                    token = r.token; CLB.session.set(id, r.token, r.expiresAt);
+                    await loadList();
+                } catch (ex) {
+                    err.textContent = ex.message; err.hidden = false; btn.disabled = false; btn.textContent = 'Đăng nhập'; $('pw').select();
+                }
+            };
+        }
+
+        function logout(message) {
+            CLB.session.clear(id); token = null; rows = []; ['formModal', 'gradeModal', 'delModal', 'trashModal'].forEach(m => $(m).classList.contains('open') && CLB.closeModal(m));
+            showLogin(message);
+        }
+        $('btnLogout').onclick = () => logout();
+
+        // Gọi API có token; hết phiên thì quay về màn đăng nhập
+        async function api(body) {
+            try { return await CLB.post(Object.assign({ token }, body)); }
+            catch (e) { if (e.code === 'AUTH') { logout('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.'); } throw e; }
+        }
+
+        // ===================== DANH SÁCH =====================
+        async function loadList(silent) {
+            if (!silent) app.innerHTML = '<div class="card"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div>';
+            try {
+                const r = await api({ action: 'list' });
+                fields = r.fields; rows = r.rows; map = CLB.fieldMap(fields);
+            } catch (e) {
+                if (e.code === 'AUTH') return;
+                app.innerHTML = `<div class="card state"><div class="big">⚠️</div><p style="margin-bottom:14px">${CLB.esc(e.message)}</p><button class="btn btn-primary" id="retry">🔄 Thử lại</button></div>`;
+                $('retry').onclick = () => loadList(); return;
+            }
+            $('topActions').hidden = false;
+            render();
+        }
+
+        const val = (row, role) => (map.byRole[role] ? row.values[map.byRole[role].key] : '');
+        const beltOrder = b => { const i = CLB.levels().indexOf(b); return i < 0 ? 999 : i; };
+
+        function visibleFields() {
+            if (ui.all) return fields;
+            const picked = COMPACT.map(r => map.byRole[r]).filter(Boolean);
+            return fields.filter(f => picked.includes(f));
+        }
+
+        function render() {
+            const total = rows.length;
+            const belts = {}; rows.forEach(r => { const b = String(val(r, 'belt') || ''); if (b) belts[b] = (belts[b] || 0) + 1; });
+            const beltList = Object.keys(belts).sort((a, b) => beltOrder(a) - beltOrder(b) || a.localeCompare(b, 'vi'));
+            const avg = total ? Math.round(rows.reduce((s, r) => s + r.pct, 0) / total) : 0;
+            app.innerHTML = `
+                <div class="card">
+                    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;justify-content:space-between">
+                        <div><h1 class="page-title">${CLB.esc(club.name)}</h1><div class="sub"><b>${total}</b> võ sinh · tiến độ trung bình <b>${avg}%</b></div></div>
+                        <div style="display:flex;gap:8px;flex-wrap:wrap">
+                            <button class="btn btn-primary" id="btnAdd">➕ Thêm võ sinh</button>
+                            <button class="btn" id="btnTrash">♻️ Thùng rác</button>
+                            <button class="btn" id="btnReload">🔄 Tải lại</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="toolbar">
+                        <input class="input grow" id="q" type="search" placeholder="Tìm theo tên, pháp danh..." value="${CLB.esc(ui.q)}" aria-label="Tìm võ sinh">
+                        <select class="input" id="beltFilter" aria-label="Lọc cấp đai"><option value="">Tất cả cấp đai</option>${beltList.map(b => `<option value="${CLB.esc(b)}" ${ui.belt === b ? 'selected' : ''}>${CLB.esc(b)} (${belts[b]})</option>`).join('')}</select>
+                        <label class="chip hide-sm" style="display:inline-flex;gap:6px;align-items:center"><input type="checkbox" id="allCols" ${ui.all ? 'checked' : ''}> Hiện tất cả cột</label>
+                    </div>
+                    <div class="table-wrap" style="margin-top:14px"><table class="tbl"><thead id="thead"></thead><tbody id="rows"></tbody></table></div>
+                    <div class="sub" id="count" style="margin-top:10px"></div>
+                </div>`;
+            $('btnAdd').onclick = () => openForm(null);
+            $('btnTrash').onclick = openTrash;
+            $('btnReload').onclick = () => loadList();
+            $('q').oninput = CLB.debounce(e => { ui.q = e.target.value; renderRows(); }, 120);
+            $('beltFilter').onchange = e => { ui.belt = e.target.value; renderRows(); };
+            $('allCols').onchange = e => { ui.all = e.target.checked; renderRows(); };
+            renderRows();
+        }
+
+        function cellHtml(f, row) {
+            const v = row.values[f.key];
+            if (f.role === 'pct') return CLB.progressBar(row.pct);
+            if (f.role === 'name') return `<span class="name">${CLB.esc(v)}</span>`;
+            if (f.type === 'checkbox') return v === true ? '<span class="yes">✔</span>' : '<span class="no">—</span>';
+            if (f.type === 'url') return CLB.isHttp(v) ? `<a class="link-pill" target="_blank" rel="noopener" href="${CLB.esc(v)}">Mở ↗</a>` : (v ? `<span class="sub" title="Link không hợp lệ">⚠</span>` : '');
+            if (f.type === 'textarea' || f.type === 'progress') return `<div class="clip">${CLB.esc(v)}</div>`;
+            return CLB.esc(v);
+        }
+
+        const actionBtns = r => `<button class="btn btn-icon" data-act="edit" title="Sửa thông tin" aria-label="Sửa ${CLB.esc(val(r, 'name'))}">✏️</button>
+                <button class="btn btn-icon" data-act="grade" title="Chấm tiến độ" aria-label="Chấm tiến độ ${CLB.esc(val(r, 'name'))}">📋</button>
+                <button class="btn btn-icon" data-act="del" title="Xóa" aria-label="Xóa ${CLB.esc(val(r, 'name'))}">🗑️</button>`;
+        // Điện thoại: cấp đai + tiến độ + nút thao tác nằm ngay dưới tên (các cột khác ẩn đi)
+        const mobileMeta = r => `<div class="m-only m-meta"><span class="badge">${CLB.esc(val(r, 'belt') || '—')}</span>${CLB.progressBar(r.pct)}</div><div class="m-only m-actions">${actionBtns(r)}</div>`;
+
+        function renderRows() {
+            const cols = visibleFields(), q = CLB.norm(ui.q);
+            $('thead').innerHTML = `<tr><th>#</th><th>Ảnh</th>${cols.map(f => `<th class="${f.role === 'name' ? '' : 'hide-sm'}">${CLB.esc(f.key)}</th>`).join('')}<th class="act">Thao tác</th></tr>`;
+            const list = rows.filter(r => {
+                if (ui.belt && String(val(r, 'belt')) !== ui.belt) return false;
+                return !q || CLB.norm(val(r, 'name')).includes(q) || CLB.norm(val(r, 'dharma')).includes(q);
+            });
+            $('rows').innerHTML = list.length ? list.map((r, n) => `<tr data-id="${CLB.esc(r.id)}">
+                <td class="num">${n + 1}</td>
+                <td>${CLB.avatar(val(r, 'name'), val(r, 'photo'), 160)}</td>
+                ${cols.map(f => `<td class="${f.type === 'textarea' || f.type === 'progress' ? 'wrap ' : ''}${f.role === 'name' ? 'namecell ' : 'hide-sm '}${f.role === 'dharma' ? 'mid ' : ''}${['belt', 'birth', 'gender', 'register', 'pct', 'stt', 'updated'].includes(f.role) ? 'nw' : ''}">${cellHtml(f, r)}${f.role === 'name' ? mobileMeta(r) : ''}</td>`).join('')}
+                <td class="act">${actionBtns(r)}</td></tr>`).join('')
+                : `<tr><td colspan="${cols.length + 3}"><div class="state" style="padding:28px">${rows.length ? 'Không có võ sinh phù hợp.' : 'CLB chưa có võ sinh nào. Bấm “Thêm võ sinh” để bắt đầu.'}</div></td></tr>`;
+            $('count').textContent = `Hiển thị ${list.length} / ${rows.length} võ sinh.`;
+        }
+        document.addEventListener('click', e => {
+            const b = e.target.closest('button[data-act]'); if (!b) return;
+            const row = rows.find(r => r.id === b.closest('tr').dataset.id); if (!row) return;
+            if (b.dataset.act === 'edit') openForm(row); else if (b.dataset.act === 'grade') openGrade(row); else openDelete(row);
+        });
+
+        // Gộp kết quả trả về vào danh sách
+        function upsert(row) { const i = rows.findIndex(r => r.id === row.id); if (i >= 0) rows[i] = row; else rows.push(row); render(); }
+        async function onConflict(e) { if (e.code === 'CONFLICT' || e.code === 'NOT_FOUND') { CLB.toast(e.message, 'error'); await loadList(true); return true; } return false; }
+
+        // ===================== THÊM / SỬA =====================
+        function control(f, row, creating) {
+            const key = CLB.esc(f.key), v = row ? row.values[f.key] : '', label = `<label class="lbl" for="f_${f.col || key}">${key}${f.required ? ' <span class="req">*</span>' : ''}</label>`;
+            const attr = `id="f_${f.col || key}" class="input" data-key="${key}" data-type="${CLB.esc(f.type)}"`;
+            if (f.type === 'checkbox') return `<div><div class="lbl" aria-hidden="true" style="visibility:hidden">&nbsp;</div><label class="check-line"><input type="checkbox" data-key="${key}" data-type="checkbox" ${v === true ? 'checked' : ''}> ${key}</label></div>`;
+            if (f.type === 'textarea') return `<div class="full">${label}<textarea ${attr} maxlength="10000">${CLB.esc(v)}</textarea></div>`;
+            if (f.type === 'select' || f.type === 'belt') {
+                let opts = f.type === 'belt' ? CLB.levels() : f.options.slice();
+                if (v !== '' && v != null && !opts.includes(String(v))) opts.push(String(v));
+                const sel = creating && f.type === 'belt' && !v ? opts[0] : String(v == null ? '' : v);
+                return `<div>${label}<select ${attr}><option value="">— Chọn —</option>${opts.map(o => `<option ${o === sel ? 'selected' : ''}>${CLB.esc(o)}</option>`).join('')}</select></div>`;
+            }
+            if (f.type === 'progress') return `<div class="full">${label}<div class="readonly-box">${CLB.esc(f.role === 'pct' ? (row ? row.pct + '%' : '0%') : (v || '(chưa có)'))}</div><div class="hint">Cập nhật bằng nút 📋 Chấm tiến độ.</div></div>`;
+            if (f.type === 'auto' || f.type === 'readonly') return `<div>${label}<input class="input" readonly value="${CLB.esc(row ? v : (f.role === 'unit' ? club.name : '(tự động)'))}"></div>`;
+            if (f.type === 'url' && f.role === 'photo') return `<div class="full">${label}<div class="with-photo"><div><input ${attr} type="text" inputmode="url" placeholder="https://drive.google.com/file/d/.../view" value="${CLB.esc(v)}"><div class="hint">Dán link ảnh trên Google Drive (đã chia sẻ “Bất kỳ ai có đường liên kết”). Ảnh hiển thị trọn khung, không bị cắt.</div></div><div id="photoPreview">${CLB.avatar(row ? val(row, 'name') : '?', v, 240)}</div></div></div>`;
+            if (f.type === 'url') return `<div>${label}<input ${attr} type="text" inputmode="url" placeholder="https://..." value="${CLB.esc(v)}"></div>`;
+            if (f.type === 'date') return `<div>${label}<input ${attr} type="text" inputmode="numeric" placeholder="dd/mm/yyyy" maxlength="10" value="${CLB.esc(v)}"><div class="hint">Ngày/tháng/năm, hoặc chỉ ghi năm sinh (vd 2012).</div></div>`;
+            const mode = f.role === 'height' || f.role === 'weight' ? ' inputmode="decimal"' : '';
+            return `<div>${label}<input ${attr} type="text"${mode} maxlength="500" value="${CLB.esc(v)}"></div>`;
+        }
+
+        // Các cột tự động / do hệ thống quản lý: hiển thị gọn ở cuối form (chỉ xem)
+        function infoBlock(row) {
+            const R = map.byRole, items = [];
+            if (R.stt) items.push(['STT', row ? CLB.esc(row.values[R.stt.key]) : '(tự động)']);
+            if (R.unit) items.push([CLB.esc(R.unit.key), CLB.esc(row ? row.values[R.unit.key] : club.name)]);
+            if (R.updated) items.push([CLB.esc(R.updated.key), CLB.esc(row ? (row.values[R.updated.key] || '—') : '—')]);
+            let extra = '';
+            if (R.pct) {
+                const n = t => { const txt = row ? String(row.values[R[t].key] || '') : ''; return CLB.splitLessons(txt, CLB.lessons(row ? String(val(row, 'belt')) : '')).known.length + CLB.splitLessons(txt, CLB.lessons(row ? String(val(row, 'belt')) : '')).extra.length; };
+                extra = `<div class="wide"><div style="flex:1;min-width:180px"><div class="k">${CLB.esc(R.pct.key)}</div>${CLB.progressBar(row ? row.pct : 0)}</div>
+                    ${R.done && R.todo ? `<div class="v">✅ ${n('done')} bài đã hoàn thành · ⏳ ${n('todo')} bài chưa</div>` : ''}
+                    <div class="hint" style="margin:0">Tiến độ được cập nhật bằng nút 📋 <b>Chấm tiến độ</b> ở danh sách.</div></div>`;
+            }
+            return `<div class="info-block">${items.map(i => `<div><div class="k">${i[0]}</div><div class="v">${i[1]}</div></div>`).join('')}${extra}</div>`;
+        }
+
+        function openForm(row) {
+            editing = row;
+            $('formTitle').textContent = row ? '✏️ Sửa: ' + val(row, 'name') : '➕ Thêm võ sinh mới';
+            const editable = fields.filter(f => !['auto', 'readonly', 'progress'].includes(f.type));
+            $('formFields').innerHTML = editable.map(f => control(f, row, !row)).join('') + infoBlock(row);
+            $('formErr').hidden = true;
+            const first = $('formFields').querySelector('[data-type="text"]'); if (first) first.setAttribute('data-autofocus', '');
+            // Xem trước ảnh khi dán link
+            const photoField = map.byRole.photo;
+            if (photoField) {
+                const input = $('formFields').querySelector(`[data-key="${CSS.escape(photoField.key)}"]`);
+                if (input) input.addEventListener('input', CLB.debounce(() => { $('photoPreview').innerHTML = CLB.avatar(row ? val(row, 'name') : '?', input.value, 240); }, 400));
+            }
+            CLB.openModal('formModal');
+        }
+
+        $('studentForm').onsubmit = async e => {
+            e.preventDefault(); if (busy) return;
+            const values = {};
+            $('formFields').querySelectorAll('[data-key]').forEach(el => { values[el.dataset.key] = el.dataset.type === 'checkbox' ? el.checked : el.value; });
+            const nameKey = map.byRole.name.key;
+            const err = $('formErr'), btn = $('formSave');
+            if (!String(values[nameKey] || '').trim()) { err.textContent = 'Vui lòng nhập họ và tên.'; err.hidden = false; return; }
+            busy = true; btn.disabled = true; btn.textContent = '⏳ Đang lưu...'; err.hidden = true;
+            try {
+                const r = editing
+                    ? await api({ action: 'update', rowId: editing.id, version: editing.version, values })
+                    : await api({ action: 'create', values });
+                CLB.closeModal('formModal'); upsert(r.row);
+                CLB.toast(editing ? (r.changed ? 'Đã lưu thay đổi.' : 'Không có thay đổi nào.') : 'Đã thêm võ sinh.', 'ok');
+            } catch (ex) {
+                if (ex.code === 'AUTH') return;
+                if (await onConflict(ex)) CLB.closeModal('formModal'); else { err.textContent = ex.message; err.hidden = false; }
+            } finally { busy = false; btn.disabled = false; btn.textContent = '💾 Lưu'; }
+        };
+
+        // ===================== CHẤM TIẾN ĐỘ (tích hợp từ BAOCAOTIENDO) =====================
+        function openGrade(row) {
+            const R = map.byRole;
+            if (!R.done || !R.todo || !R.pct) { CLB.toast('Tab của CLB thiếu cột tiến độ (bài đã/chưa hoàn thành, tỷ lệ).', 'error'); return; }
+            grading = row;
+            const belt = String(val(row, 'belt') || '');
+            const opts = CLB.levels().slice(); if (belt && !opts.includes(belt)) opts.unshift(belt);
+            $('gradeTitle').innerHTML = '📋 Chấm tiến độ: <span style="color:var(--info)">' + CLB.esc(val(row, 'name')) + '</span>';
+            $('gradeBelt').innerHTML = (belt ? '' : '<option value="">— Chọn cấp đai —</option>') + opts.map(o => `<option ${o === belt ? 'selected' : ''}>${CLB.esc(o)}</option>`).join('');
+            gradeTicks = new Set(CLB.splitLessons(val(row, 'done'), CLB.lessons(belt)).known);
+            $('gradeErr').hidden = true;
+            renderGrade(); CLB.openModal('gradeModal');
+        }
+        function renderGrade() {
+            const belt = $('gradeBelt').value, lessons = CLB.lessons(belt);
+            const list = $('gradeList');
+            if (!lessons) {
+                list.innerHTML = `<div class="warn-box" style="grid-column:1/-1">Chưa có chương trình học cho cấp đai${belt ? ' “' + CLB.esc(belt) + '”' : ''}. Hãy chọn cấp đai ở trên.</div>`;
+                $('gradeCount').textContent = ''; $('gradeBar').innerHTML = ''; $('gradeSave').disabled = true; return;
+            }
+            $('gradeSave').disabled = false;
+            list.innerHTML = lessons.map((b, i) => `<label class="lesson ${gradeTicks.has(b) ? 'done' : ''}"><input type="checkbox" data-i="${i}" ${gradeTicks.has(b) ? 'checked' : ''}> <span>${CLB.esc(b)}</span></label>`).join('');
+            updateGradeSummary();
+        }
+        function updateGradeSummary() {
+            const lessons = CLB.lessons($('gradeBelt').value) || [];
+            const n = lessons.filter(b => gradeTicks.has(b)).length, p = lessons.length ? Math.round(n / lessons.length * 100) : 0;
+            $('gradeCount').textContent = `${n}/${lessons.length} bài`; $('gradeBar').innerHTML = CLB.progressBar(p);
+        }
+        $('gradeList').addEventListener('change', e => {
+            const cb = e.target.closest('input[type=checkbox]'); if (!cb) return;
+            const lesson = CLB.lessons($('gradeBelt').value)[Number(cb.dataset.i)];
+            cb.checked ? gradeTicks.add(lesson) : gradeTicks.delete(lesson);
+            cb.closest('.lesson').classList.toggle('done', cb.checked); updateGradeSummary();
+        });
+        $('gradeBelt').onchange = renderGrade;   // Đổi cấp đai: giữ lại các bài trùng tên (đối luyện, tự vệ kế thừa)
+        $('gradeAll').onclick = () => { (CLB.lessons($('gradeBelt').value) || []).forEach(b => gradeTicks.add(b)); renderGrade(); };
+        $('gradeNone').onclick = () => { gradeTicks.clear(); renderGrade(); };
+        $('gradeSave').onclick = async () => {
+            if (busy || !grading) return;
+            const belt = $('gradeBelt').value, lessons = CLB.lessons(belt); if (!lessons) return;
+            const done = lessons.filter(b => gradeTicks.has(b)), todo = lessons.filter(b => !gradeTicks.has(b));
+            const btn = $('gradeSave'), err = $('gradeErr');
+            busy = true; btn.disabled = true; btn.textContent = '⏳ Đang lưu...'; err.hidden = true;
+            try {
+                const r = await api({ action: 'grade', rowId: grading.id, version: grading.version, belt, done: done.join(', '), todo: todo.join(', '), pct: Math.round(done.length / lessons.length * 100) });
+                CLB.closeModal('gradeModal'); upsert(r.row); CLB.toast('Đã lưu kết quả chấm tiến độ.', 'ok');
+            } catch (ex) {
+                if (ex.code === 'AUTH') return;
+                if (await onConflict(ex)) CLB.closeModal('gradeModal'); else { err.textContent = ex.message; err.hidden = false; }
+            } finally { busy = false; btn.disabled = false; btn.textContent = '💾 Lưu kết quả'; }
+        };
+
+        // ===================== XÓA + THÙNG RÁC =====================
+        function openDelete(row) {
+            deleting = row;
+            $('delText').innerHTML = 'Bạn sắp xóa võ sinh <b>' + CLB.esc(val(row, 'name')) + '</b> khỏi danh sách của CLB.';
+            $('delErr').hidden = true; CLB.openModal('delModal');
+        }
+        $('delOk').onclick = async () => {
+            if (busy || !deleting) return;
+            const btn = $('delOk'); busy = true; btn.disabled = true; btn.textContent = 'Đang xóa...'; $('delErr').hidden = true;
+            try {
+                await api({ action: 'delete', rowId: deleting.id, version: deleting.version });
+                rows = rows.filter(r => r.id !== deleting.id); CLB.closeModal('delModal'); render();
+                CLB.toast('Đã xóa. Có thể khôi phục trong Thùng rác.', 'ok');
+            } catch (ex) {
+                if (ex.code === 'AUTH') return;
+                if (await onConflict(ex)) CLB.closeModal('delModal'); else { $('delErr').textContent = ex.message; $('delErr').hidden = false; }
+            } finally { busy = false; btn.disabled = false; btn.textContent = 'Xóa'; }
+        };
+
+        async function openTrash() {
+            $('trashBody').innerHTML = '<div class="skeleton"></div>'; CLB.openModal('trashModal');
+            try {
+                const r = await api({ action: 'trash' });
+                $('trashBody').innerHTML = r.items.length
+                    ? `<table class="tbl"><thead><tr><th>Võ sinh</th><th>Thời gian xóa</th><th></th></tr></thead><tbody>${r.items.map(i => `<tr><td class="name">${CLB.esc(i.student)}</td><td class="sub">${CLB.esc(i.time)}</td><td style="text-align:right"><button class="btn btn-sm btn-ok" data-restore="${CLB.esc(i.logId)}">↩️ Khôi phục</button></td></tr>`).join('')}</tbody></table>`
+                    : '<div class="state" style="padding:26px">Thùng rác trống.</div>';
+            } catch (e) { if (e.code !== 'AUTH') $('trashBody').innerHTML = `<div class="error-box">${CLB.esc(e.message)}</div>`; }
+        }
+        $('trashBody').addEventListener('click', async e => {
+            const b = e.target.closest('[data-restore]'); if (!b || busy) return;
+            busy = true; b.disabled = true; b.textContent = 'Đang khôi phục...';
+            try {
+                const r = await api({ action: 'restore', logId: b.dataset.restore });
+                upsert(r.row); CLB.toast('Đã khôi phục võ sinh.', 'ok'); busy = false; await openTrash();
+            } catch (ex) { busy = false; if (ex.code !== 'AUTH') { CLB.toast(ex.message, 'error'); b.disabled = false; b.textContent = '↩️ Khôi phục'; } }
+        });
+
+        start();
+    })();
+    </script>
+</body>
+</html>

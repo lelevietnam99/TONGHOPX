@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Câu lạc bộ - Phật Quang Quyền</title>
+    <link rel="stylesheet" href="clb.css">
+</head>
+<body>
+    <header class="topbar">
+        <a class="logo" href="index.html">PQQ <span>Dashboard</span></a>
+        <div class="crumb" id="crumb">Câu lạc bộ</div>
+        <div class="actions"><a class="btn btn-ghost btn-sm" id="linkAdmin" href="#">🔐 Quản lý CLB</a></div>
+    </header>
+
+    <main class="container" id="app">
+        <div class="card"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div>
+    </main>
+
+    <!-- Chi tiết võ sinh -->
+    <div class="modal-overlay" id="detailModal" aria-hidden="true">
+        <div class="modal wide" role="dialog" aria-modal="true" aria-labelledby="dName">
+            <button class="modal-x" data-close="detailModal" aria-label="Đóng">&times;</button>
+            <div class="detail">
+                <div id="dPhoto"></div>
+                <div>
+                    <h3 id="dName" style="border:0;padding:0;margin:0"></h3>
+                    <div id="dDharma" class="sub"></div>
+                    <dl class="kv" id="dKv"></dl>
+                    <div id="dLinks"></div>
+                    <div class="tabs" id="dTabs">
+                        <button class="tab on" data-tab="done"></button>
+                        <button class="tab" data-tab="todo"></button>
+                    </div>
+                    <ol class="lessons" id="dLessons"></ol>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="clb-config.js"></script>
+    <script src="chuong-trinh.js"></script>
+    <script src="clb-common.js"></script>
+    <script>
+    (function () {
+        const $ = id => document.getElementById(id);
+        const app = $('app'), id = CLB.clubId();
+        let data = null, map = null, students = [], state = { q: '', belt: '', sort: 'sheet' }, current = null, tab = 'done';
+
+        function showState(icon, title, text, extra) {
+            app.innerHTML = `<div class="card state"><div class="big">${icon}</div><h2 style="color:var(--primary)">${CLB.esc(title)}</h2><p style="margin:8px 0 16px">${CLB.esc(text)}</p>${extra || ''}</div>`;
+        }
+
+        async function load() {
+            if (id == null) { showState('🔎', 'Thiếu mã CLB', 'Đường link cần có dạng clb.html?id=số-thứ-tự-CLB (ví dụ clb.html?id=1).', '<a class="btn btn-primary" href="index.html">Về Dashboard</a>'); return; }
+            $('linkAdmin').href = 'clb-admin.html?id=' + id;
+            try {
+                data = await CLB.get({ action: 'view', id });
+            } catch (e) {
+                const notFound = e.code === 'NOT_FOUND';
+                showState(notFound ? '🗂️' : '⚠️', notFound ? 'Không tìm thấy CLB' : 'Không tải được dữ liệu', e.message,
+                    '<button class="btn btn-primary" id="retry">🔄 Thử lại</button> <a class="btn" href="index.html">Về Dashboard</a>');
+                const r = $('retry'); if (r) r.onclick = () => { app.innerHTML = '<div class="card"><div class="skeleton"></div><div class="skeleton"></div></div>'; load(); };
+                return;
+            }
+            map = CLB.fieldMap(data.fields);
+            students = data.rows.map((r, i) => ({ r, i, name: String(CLB.val(map, r, 'name')), belt: String(CLB.val(map, r, 'belt') || ''), pct: r.pct }));
+            document.title = data.club.name + ' - Phật Quang Quyền';
+            $('crumb').textContent = data.club.name;
+            render();
+        }
+
+        const beltOrder = b => { const i = CLB.levels().indexOf(b); return i < 0 ? 999 : i; };
+        const givenName = n => n.trim().split(/\s+/).pop();
+
+        function filtered() {
+            const q = CLB.norm(state.q);
+            let list = students.filter(s => {
+                if (state.belt && s.belt !== state.belt) return false;
+                if (!q) return true;
+                return CLB.norm(s.name).includes(q) || CLB.norm(CLB.val(map, s.r, 'dharma')).includes(q) || CLB.norm(s.belt).includes(q);
+            });
+            if (state.sort === 'name') list.sort((a, b) => givenName(a.name).localeCompare(givenName(b.name), 'vi') || a.name.localeCompare(b.name, 'vi'));
+            if (state.sort === 'pct') list.sort((a, b) => b.pct - a.pct || a.i - b.i);
+            if (state.sort === 'belt') list.sort((a, b) => beltOrder(b.belt) - beltOrder(a.belt) || a.i - b.i);
+            return list;
+        }
+
+        function render() {
+            const total = students.length;
+            const avg = total ? Math.round(students.reduce((s, x) => s + x.pct, 0) / total) : 0;
+            const full = students.filter(s => s.pct >= 100).length;
+            const reg = map.byRole.register ? students.filter(s => CLB.val(map, s.r, 'register') === true).length : null;
+            const belts = {}; students.forEach(s => { const b = s.belt || '(chưa có)'; belts[b] = (belts[b] || 0) + 1; });
+            const beltList = Object.keys(belts).sort((a, b) => beltOrder(a) - beltOrder(b) || a.localeCompare(b, 'vi'));
+
+            app.innerHTML = `
+                <div class="card">
+                    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+                        <h1 class="page-title">${CLB.esc(data.club.name)}</h1>
+                        <span class="badge region-${CLB.esc(data.club.region.replace(/\s+/g, '-'))}">${CLB.esc(data.club.region)}</span>
+                    </div>
+                    <div class="sub">Dữ liệu cập nhật: ${CLB.esc(new Date(data.generatedAt).toLocaleString('vi-VN'))}</div>
+                </div>
+                <div class="stats">
+                    <div class="stat"><div class="t">Tổng võ sinh</div><div class="v">${total}</div></div>
+                    <div class="stat info"><div class="t">Tiến độ trung bình</div><div class="v">${avg}%</div></div>
+                    <div class="stat ok"><div class="t">Hoàn thành 100%</div><div class="v">${full}</div></div>
+                    ${reg === null ? '' : `<div class="stat warn"><div class="t">Đăng ký thi thăng đai</div><div class="v">${reg}</div></div>`}
+                </div>
+                <div class="card">
+                    <div class="toolbar">
+                        <input class="input grow" id="q" type="search" placeholder="Tìm theo tên, pháp danh, cấp đai..." value="${CLB.esc(state.q)}" aria-label="Tìm võ sinh">
+                        <select class="input" id="sort" aria-label="Sắp xếp">
+                            <option value="sheet">Sắp xếp: theo danh sách</option><option value="name">Tên A → Z</option>
+                            <option value="pct">Tiến độ cao → thấp</option><option value="belt">Cấp đai cao → thấp</option>
+                        </select>
+                    </div>
+                    <div class="chips" id="chips"></div>
+                    <div class="table-wrap" style="margin-top:14px"><table class="tbl"><thead><tr>
+                        <th>#</th><th>Ảnh</th><th>Họ và tên</th><th class="hide-sm">Năm sinh</th><th class="hide-sm">Cấp đai</th><th class="hide-sm" style="min-width:130px">Tiến độ</th><th class="hide-sm">Cập nhật</th>
+                    </tr></thead><tbody id="rows"></tbody></table></div>
+                    <div class="sub" id="count" style="margin-top:10px"></div>
+                </div>`;
+            $('sort').value = state.sort;
+            $('chips').innerHTML = `<button class="chip ${state.belt ? '' : 'on'}" data-belt="">Tất cả<b>${total}</b></button>` +
+                beltList.map(b => `<button class="chip ${state.belt === b ? 'on' : ''}" data-belt="${CLB.esc(b === '(chưa có)' ? '' : b)}" ${b === '(chưa có)' ? 'disabled' : ''}>${CLB.esc(b)}<b>${belts[b]}</b></button>`).join('');
+            $('q').oninput = CLB.debounce(e => { state.q = e.target.value; rows(); }, 120);
+            $('sort').onchange = e => { state.sort = e.target.value; rows(); };
+            $('chips').onclick = e => { const c = e.target.closest('.chip'); if (!c || c.disabled) return; state.belt = c.dataset.belt; document.querySelectorAll('.chip').forEach(x => x.classList.toggle('on', x.dataset.belt === state.belt)); rows(); };
+            $('rows').onclick = e => { const tr = e.target.closest('tr[data-i]'); if (tr && !e.target.closest('a')) openDetail(students[Number(tr.dataset.i)]); };
+            rows();
+        }
+
+        function rows() {
+            const list = filtered();
+            $('rows').innerHTML = list.length ? list.map((s, n) => {
+                const nm = s.name, dh = CLB.val(map, s.r, 'dharma'), up = CLB.val(map, s.r, 'updated');
+                return `<tr class="clickable" data-i="${s.i}" tabindex="0">
+                    <td class="num">${n + 1}</td>
+                    <td>${CLB.avatar(nm, CLB.val(map, s.r, 'photo'), 160)}</td>
+                    <td class="namecell"><div class="name">${CLB.esc(nm)}</div>${dh ? `<div class="sub">${CLB.esc(dh)}</div>` : ''}
+                        <div class="m-only m-meta"><span class="badge">${CLB.esc(s.belt || '—')}</span>${CLB.progressBar(s.pct)}</div></td>
+                    <td class="hide-sm">${CLB.esc(CLB.val(map, s.r, 'birth'))}</td>
+                    <td class="hide-sm nw"><span class="badge">${CLB.esc(s.belt || '—')}</span></td>
+                    <td class="hide-sm">${CLB.progressBar(s.pct)}</td>
+                    <td class="hide-sm sub">${CLB.esc(up || '—')}</td></tr>`;
+            }).join('') : `<tr><td colspan="7"><div class="state" style="padding:26px">Không có võ sinh phù hợp.</div></td></tr>`;
+            $('count').textContent = `Hiển thị ${list.length} / ${students.length} võ sinh. Bấm vào một dòng để xem chi tiết.`;
+        }
+        document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches && e.target.matches('tr[data-i]')) openDetail(students[Number(e.target.dataset.i)]); });
+
+        function openDetail(s) {
+            current = s;
+            const r = s.r, belt = s.belt, lessons = CLB.lessons(belt);
+            $('dPhoto').innerHTML = CLB.avatar(s.name, CLB.val(map, r, 'photo'), 800);
+            $('dName').textContent = s.name;
+            const dh = CLB.val(map, r, 'dharma'); $('dDharma').textContent = dh ? 'Pháp danh: ' + dh : '';
+            const kv = [['Cấp đai', belt || '—'], ['Năm sinh', CLB.val(map, r, 'birth') || '—'], ['Giới tính', CLB.val(map, r, 'gender') || '—']];
+            if (map.byRole.register) kv.push(['Đăng ký thi', CLB.val(map, r, 'register') === true ? '✔ Đã đăng ký' : 'Chưa đăng ký']);
+            kv.push(['Cập nhật', CLB.val(map, r, 'updated') || '—']);
+            $('dKv').innerHTML = kv.map(([k, v]) => `<dt>${CLB.esc(k)}</dt><dd>${CLB.esc(v)}</dd>`).join('') + `<dt>Tiến độ</dt><dd>${CLB.progressBar(s.pct)}</dd>`;
+            $('dLinks').innerHTML = data.fields.filter(f => f.role === 'link' && CLB.isHttp(r.values[f.key]))
+                .map(f => `<a class="link-pill" target="_blank" rel="noopener" href="${CLB.esc(r.values[f.key])}">${CLB.esc(f.key)} ↗</a>`).join(' ');
+            const done = CLB.splitLessons(CLB.val(map, r, 'done'), lessons), todo = CLB.splitLessons(CLB.val(map, r, 'todo'), lessons);
+            current.lists = { done: done.known.concat(done.extra), todo: todo.known.concat(todo.extra) };
+            const tabs = $('dTabs').children;
+            tabs[0].textContent = `✅ Đã hoàn thành (${current.lists.done.length})`; tabs[1].textContent = `⏳ Chưa hoàn thành (${current.lists.todo.length})`;
+            showTab('done'); CLB.openModal('detailModal');
+        }
+        function showTab(t) {
+            tab = t;
+            [...$('dTabs').children].forEach(b => b.classList.toggle('on', b.dataset.tab === t));
+            const list = current.lists[t];
+            $('dLessons').innerHTML = list.length ? list.map(x => `<li>${CLB.esc(x)}</li>`).join('') : '<li style="list-style:none;color:var(--muted)">Chưa có dữ liệu.</li>';
+        }
+        $('dTabs').onclick = e => { const b = e.target.closest('.tab'); if (b) showTab(b.dataset.tab); };
+
+        load();
+    })();
+    </script>
+</body>
+</html>

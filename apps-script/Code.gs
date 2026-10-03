@@ -18,7 +18,7 @@
 var MASTER_SHEET = "DS_CLB_VD";                    // Tab tổng (Tên CLB -> Khu vực)
 var CACHE_FILE_NAME = "dashboard_cache.json";      // Tên file cache trên Drive
 var CACHE_FILE_ID_PROP = "DASHBOARD_CACHE_FILE_ID";
-var LAST_COL = 21;                                 // Chỉ đọc đến cột U (Link ảnh đại diện)
+var LAST_COL = 24;                                 // Đọc đến cột X: U = Link ảnh, V = BHL (tick), W = Chức danh, X = SĐT
 
 // ---------- ĐẨY data.json LÊN GITHUB (để web đọc trực tiếp, không cần chờ Apps Script) ----------
 // Token KHÔNG viết vào code. Vào Project Settings -> Script properties -> thêm GITHUB_TOKEN = <token>.
@@ -283,13 +283,16 @@ function collectDashboard_() {
     var countBefore = allStudents.length;
 
     // Chỉ đọc đúng vùng cần (dòng 2 -> cuối, cột A -> U) thay vì cả tab
-    var rows = sheet.getRange(2, 1, lastRow - 1, LAST_COL).getValues();
+    var width = Math.max(LAST_COL, sheet.getLastColumn());
+    var rows = sheet.getRange(2, 1, lastRow - 1, width).getValues();
+    var bhlCols = bhlColumns_(sheet.getRange(1, 1, 1, width).getValues()[0]);
 
     for (var j = 0; j < rows.length; j++) {
       var row = rows[j];
       var name = cellText_(row[1], tz);              // Cột B: Họ và tên
       if (!name) continue;
 
+      var isBhl = bhlCols.bhl >= 0 && isTicked_(row[bhlCols.bhl]);
       allStudents.push({
         id: allStudents.length + 1,
         name: name,
@@ -304,7 +307,10 @@ function collectDashboard_() {
         photo: photoRef_(row[20]),                   // Cột U: Link ảnh đại diện (lưu ID file Drive cho gọn)
         pct: pctNumber_(row[8]),                     // Cột I: Tỷ lệ hoàn thành (0-100)
         updated: cellText_(row[9], tz),              // Cột J: Ngày cập nhật tiến độ
-        register: row[16] === true                   // Cột Q: Đăng ký thi thăng đai (tick)
+        register: row[16] === true,                  // Cột Q: Đăng ký thi thăng đai (tick)
+        bhl: isBhl,                                                                    // Cột V: thuộc Ban Huấn Luyện (tick)
+        title: isBhl && bhlCols.title >= 0 ? cellText_(row[bhlCols.title], tz) : "",   // Cột W: Chức danh (chỉ đưa ra file công khai với thành viên BHL)
+        phone: isBhl && bhlCols.phone >= 0 ? cellText_(row[bhlCols.phone], tz) : ""    // Cột X: SĐT (chỉ thành viên BHL)
       });
     }
     // Tab khớp tên nhưng chưa có võ sinh nào (cột B trống) -> CLB sẽ không hiện trên Dashboard
@@ -320,6 +326,33 @@ function collectDashboard_() {
   if (warnings.emptyTabs.length) Logger.log("Tab khớp tên nhưng chưa có võ sinh nào: " + warnings.emptyTabs.join(" | "));
   if (warnings.clubsWithoutTab.length) Logger.log("CLB có trong DS_CLB_VD nhưng chưa có tab: " + warnings.clubsWithoutTab.join(" | "));
   return { students: allStudents, warnings: warnings };
+}
+
+/**
+ * Tìm cột BHL / Chức danh / SĐT theo TÊN tiêu đề (dòng 1); không thấy tên thì dùng vị trí V, W, X nếu ô tiêu đề ở đó còn trống
+ * hoặc đúng tên. Nhờ vậy dù tab có thêm/bớt cột (vd. cột "Mã định danh" của trang quản lý CLB) cũng không đọc nhầm.
+ */
+function bhlColumns_(header) {
+  var rules = { bhl: /^bhl$|^ban huan luyen/, title: /^chuc danh/, phone: /^sdt|^so dien thoai|^dien thoai/ };
+  var fallback = { bhl: 21, title: 22, phone: 23 };
+  var out = { bhl: -1, title: -1, phone: -1 };
+  Object.keys(rules).forEach(function (k) {
+    for (var c = 0; c < header.length; c++) if (rules[k].test(foldText_(header[c]))) { out[k] = c; return; }
+    var h = header[fallback[k]];
+    if (h === undefined || String(h).trim() === "") out[k] = fallback[k];
+  });
+  return out;
+}
+
+/** Bỏ dấu tiếng Việt + chữ thường: "Chức Danh" -> "chuc danh". */
+function foldText_(v) {
+  return String(v == null ? "" : v).normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/đ/g, "d").replace(/Đ/g, "d").toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+/** Ô checkbox: TRUE (hoặc chữ "TRUE"/"x"/"có") là đã tick. */
+function isTicked_(v) {
+  if (v === true) return true;
+  return /^(true|x|1|co|có|yes)$/i.test(String(v == null ? "" : v).trim());
 }
 
 /** Chỉ lấy năm 4 chữ số từ ô ngày sinh (ô ngày, "04/12/2008" hay "2012"). Không có thì trả về "". */

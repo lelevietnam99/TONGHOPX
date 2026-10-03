@@ -168,6 +168,28 @@
             .container { padding: 16px; }
             .stats-grid { grid-template-columns: repeat(2, 1fr); } .chart-section { grid-template-columns: 1fr; }
         }
+
+        /* ===== THANH BÊN PHẢI: BAN HUẤN LUYỆN BA MIỀN ===== */
+        .layout { grid-template-columns: 290px minmax(0, 1fr) 300px; }
+        .bh-side { border-right: 0; border-left: 1px solid var(--border); box-shadow: -2px 0 10px rgba(0,0,0,0.03); }
+        .bh-m { display: block; margin: 0 10px 8px; padding: 10px 12px; border: 1px solid #edf0f3; border-radius: 10px; background: #fff; }
+        .bh-m:hover { border-color: #d5dbe1; box-shadow: 0 2px 8px rgba(0,0,0,.05); }
+        .bh-name { font-weight: 800; color: var(--primary); font-size: .95rem; line-height: 1.3; }
+        .bh-dharma { font-weight: 600; font-size: .8rem; color: #7f8c8d; }
+        .bh-title { display: inline-block; margin-top: 4px; padding: 2px 9px; border-radius: 999px; background: #fff4e8; color: #b9600a; font-weight: 800; font-size: .74rem; }
+        .bh-row { display: flex; align-items: center; gap: 7px; margin-top: 5px; font-size: .84rem; color: #566573; }
+        .bh-row i { width: 14px; text-align: center; color: #aab4bd; font-size: .78rem; }
+        .bh-row a { color: inherit; text-decoration: none; }
+        .bh-row a:hover { color: var(--secondary); text-decoration: underline; }
+        .bh-empty { padding: 18px 16px; font-size: .86rem; color: #7f8c8d; line-height: 1.5; }
+        .bh-toggle { display: none; }
+        @media (max-width: 1199px) {
+            .layout { grid-template-columns: 290px minmax(0, 1fr); }
+            .bh-toggle { display: inline-flex; }
+            .bh-side { position: fixed; z-index: 120; right: 0; left: auto; top: var(--topbar-h, 72px); bottom: 0; height: auto; width: min(86vw, 330px); transform: translateX(105%); transition: transform .25s ease; box-shadow: -6px 0 24px rgba(0,0,0,.25); }
+            .bh-side.open { transform: none; }
+        }
+        @media (max-width: 900px) { .layout { grid-template-columns: minmax(0, 1fr); } }
     </style>
 </head>
 <body>
@@ -193,6 +215,7 @@
         <div style="display:flex;align-items:center;gap:12px">
             <button class="sb-toggle" id="sbToggle" type="button" aria-label="Mở danh sách câu lạc bộ" aria-expanded="false" aria-controls="sidebar"><i class="fas fa-bars"></i> CLB</button>
             <div class="logo">PQQ <span>Dashboard</span></div>
+            <button class="sb-toggle bh-toggle" id="bhToggle" type="button" aria-label="Mở danh sách Ban Huấn Luyện" aria-expanded="false" aria-controls="bhSide"><i class="fas fa-user-tie"></i> BHL</button>
         </div>
         <div class="topbar-actions">
             <a href="https://lelevietnam99.github.io/DANHSACHTHITHANGDAI_CHINHTHUC/" class="btn-progress-update" style="background: linear-gradient(135deg, #e67e22, #d35400);" target="_blank">
@@ -303,6 +326,13 @@
         </div>
     </section>
     </main>
+    <aside class="sidebar bh-side" id="bhSide" aria-label="Danh sách Ban Huấn Luyện ba miền">
+        <div class="sb-head">
+            <div class="sb-title"><i class="fas fa-user-tie"></i> DS Ban Huấn Luyện ba miền</div>
+            <div class="sb-search"><i class="fas fa-search"></i><input type="search" id="bhSearch" placeholder="Tìm tên, chức danh, CLB, SĐT..." aria-label="Tìm trong Ban Huấn Luyện"></div>
+        </div>
+        <nav id="bhNav"></nav>
+    </aside>
     </div>
 
     <div class="modal-overlay" id="studentModal" aria-hidden="true">
@@ -477,7 +507,7 @@
             renderChart();
             renderTable(filterStudents(document.getElementById('searchInput').value));
             document.getElementById('lastUpdated').innerText = formatUpdatedAt(updatedAt);
-            renderSidebar();
+            renderSidebar(); renderBhl();
         }
 
         function processStats() {
@@ -731,11 +761,15 @@
         });
 
         // ----- Ngăn kéo trên điện thoại -----
-        function setDrawer(open) {
-            $id('sidebar').classList.toggle('open', open); $id('sbBackdrop').classList.toggle('open', open);
-            $id('sbToggle').setAttribute('aria-expanded', String(open));
+        // side: 'left' (danh sách CLB) hoặc 'right' (Ban Huấn Luyện); mở bên này thì đóng bên kia. Không truyền side = đóng hết.
+        function setDrawer(open, side) {
+            const L = open && side === 'left', R = open && side === 'right';
+            $id('sidebar').classList.toggle('open', L); $id('bhSide').classList.toggle('open', R);
+            $id('sbBackdrop').classList.toggle('open', L || R);
+            $id('sbToggle').setAttribute('aria-expanded', String(L)); $id('bhToggle').setAttribute('aria-expanded', String(R));
         }
-        $id('sbToggle').addEventListener('click', () => setDrawer(!$id('sidebar').classList.contains('open')));
+        $id('sbToggle').addEventListener('click', () => setDrawer(!$id('sidebar').classList.contains('open'), 'left'));
+        $id('bhToggle').addEventListener('click', () => setDrawer(!$id('bhSide').classList.contains('open'), 'right'));
         $id('sbBackdrop').addEventListener('click', () => setDrawer(false));
         document.addEventListener('keydown', e => { if (e.key === 'Escape') setDrawer(false); });
         new ResizeObserver(() => document.documentElement.style.setProperty('--topbar-h', $id('topbarArea').offsetHeight + 'px')).observe($id('topbarArea'));
@@ -786,6 +820,53 @@
         window.addEventListener('message', e => {
             if (e.origin !== CLB_ORIGIN || e.source !== $id('clubFrame').contentWindow) return;
             if (e.data && e.data.type === 'clb-ready') { clearTimeout(frameTimer); $id('cpLoading').hidden = true; $id('cpError').hidden = true; }
+        });
+
+        // ================= THANH BÊN PHẢI: DS BAN HUẤN LUYỆN BA MIỀN =================
+        // Lấy từ các võ sinh được tick cột V (BHL) ở từng tab CLB; chức danh = cột W, SĐT = cột X.
+        let bhQuery = '', bhCollapsed = {};
+        try { bhCollapsed = JSON.parse(localStorage.getItem('pqq_bh_collapsed') || '{}') || {}; } catch (e) {}
+
+        function bhMember(m) {
+            const club = m.clubId > 0 ? `<a href="#clb=${m.clubId}">${esc(m.club)}</a>` : esc(m.club);
+            const tel = String(m.phone || '').replace(/[^\d+]/g, '');
+            return `<div class="bh-m">
+                <div class="bh-name">${esc(m.name)}${m.dharma ? ` <span class="bh-dharma">· ${esc(m.dharma)}</span>` : ''}</div>
+                ${m.title ? `<span class="bh-title">${esc(m.title)}</span>` : ''}
+                <div class="bh-row"><i class="fas fa-location-dot"></i><span>${club}</span></div>
+                ${m.phone ? `<div class="bh-row"><i class="fas fa-phone"></i><a href="tel:${esc(tel)}">${esc(m.phone)}</a></div>` : ''}
+            </div>`;
+        }
+
+        function renderBhl() {
+            const q = fold(bhQuery).trim();
+            const members = allStudentsData.filter(st => st.bhl === true);
+            const groups = REGION_ORDER.concat(['Chưa rõ']).map(r => ({
+                region: r,
+                all: members.filter(m => (REGION_COLOR[m.region] ? m.region : 'Chưa rõ') === r)
+                            .sort((a, b) => (a.clubId || 1e9) - (b.clubId || 1e9) || a.name.localeCompare(b.name, 'vi'))
+            }));
+            let html = groups.map(g => {
+                if (!g.all.length && g.region === 'Chưa rõ') return '';
+                const shown = g.all.filter(m => !q || fold([m.name, m.dharma, m.title, m.club, m.phone].join(' ')).includes(q));
+                if (q && !shown.length) return '';
+                const collapsed = !q && !!bhCollapsed[g.region];
+                return `<section class="sb-region ${collapsed ? 'collapsed' : ''}">
+                    <button class="sb-region-btn" type="button" data-bh-toggle="${esc(g.region)}" aria-expanded="${!collapsed}">
+                        <span class="sb-dot" style="background:${REGION_COLOR[g.region]}"></span><span>${esc(g.region)}</span>
+                        <span class="meta">${g.all.length} thành viên</span><i class="fas fa-chevron-down chev"></i></button>
+                    <div class="sb-list">${shown.length ? shown.map(bhMember).join('') : '<div class="bh-empty" style="padding:6px 16px 10px">Chưa có thành viên.</div>'}</div></section>`;
+            }).join('');
+            if (!members.length) html = '<div class="bh-empty">Chưa có ai được đánh dấu BHL. Hãy tick cột <b>BHL</b> (cột V) và nhập Chức danh (W), SĐT (X) ở tab CLB, rồi bấm <b>Cập nhật dữ liệu</b> ở trang quản trị.</div>';
+            else if (q && !html) html = '<div class="sb-empty">Không có thành viên phù hợp.</div>';
+            $id('bhNav').innerHTML = html;
+        }
+        $id('bhSearch').addEventListener('input', e => { bhQuery = e.target.value; renderBhl(); });
+        $id('bhNav').addEventListener('click', e => {
+            const b = e.target.closest('[data-bh-toggle]'); if (!b) return;
+            bhCollapsed[b.dataset.bhToggle] = !bhCollapsed[b.dataset.bhToggle];
+            try { localStorage.setItem('pqq_bh_collapsed', JSON.stringify(bhCollapsed)); } catch (x) {}
+            renderBhl();
         });
     </script>
 </body>

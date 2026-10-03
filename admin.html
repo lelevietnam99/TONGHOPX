@@ -77,7 +77,7 @@
                 const res = await fetch(DATA_URL + '?t=' + Date.now(), { cache: 'no-store' });
                 if (!res.ok) return null;
                 const json = await res.json();
-                return { updatedAt: json.updatedAt, count: Array.isArray(json.data) ? json.data.length : 0, bhl: Array.isArray(json.data) ? json.data.filter(x => x.bhl).length : 0 };
+                return { updatedAt: json.updatedAt, codeVersion: json.codeVersion, count: Array.isArray(json.data) ? json.data.length : 0, bhl: Array.isArray(json.data) ? json.data.filter(x => x.bhl).length : 0 };
             } catch (e) { return null; }
         }
 
@@ -88,6 +88,7 @@
             const line = (label, value) => { const p = document.createElement('div'); const b = document.createElement('b'); b.textContent = label + ': '; p.append(b, value); $('info').appendChild(p); };
             line('Dữ liệu đang công bố', fmt(cur.updatedAt));
             line('Số võ sinh', String(cur.count));
+            line('Mã nguồn tạo ra file này', cur.codeVersion || 'BẢN CŨ (chưa có dấu phiên bản)');
             line('Thành viên Ban Huấn Luyện (đã tick BHL)', String(cur.bhl));
             return cur;
         }
@@ -140,7 +141,7 @@
                 }
                 if (!result) throw new Error('Quá 6 phút mà chưa xong. Hãy xem mục Nhật ký thực thi trong Apps Script.');
                 if (result.state === 'error' || !result.pushed) throw new Error(result.message || 'Chưa đẩy được lên GitHub.');
-                s2.textContent = '2/4 Đã quét xong ' + result.count + ' võ sinh, trong đó ' + (result.bhl || 0) + ' thành viên Ban Huấn Luyện (tick BHL).'; s2.classList.add('ok');
+                s2.textContent = '2/4 Đã quét xong ' + result.count + ' võ sinh, ' + (result.codeVersion ? 'trong đó ' + (result.bhl || 0) + ' thành viên Ban Huấn Luyện (tick BHL).' : 'nhưng web app đang chạy MÃ CŨ (chưa có BHL): hãy dán lại TONGHOPX.gs rồi Triển khai → Phiên bản mới.'); s2.classList.add('ok');
                 addStep('3/4 Đã đẩy data.json lên GitHub.', 'ok');
 
                 // Bước 4: chờ GitHub Pages công bố

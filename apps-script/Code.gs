@@ -29,6 +29,8 @@ var GITHUB_REPO = "TONGHOPX";                      // Repo chứa index.html c�
 var GITHUB_BRANCH = "main";
 var GITHUB_DATA_PATH = "data.json";                // Nằm cùng thư mục với index.html
 
+var CODE_VERSION = "2026-10-03-bhl";               // Dấu phiên bản: hiện trên trang admin để biết web app đang chạy mã mới hay cũ
+
 // ---------- API CHO WEB ----------
 function doGet(e) {
   try {
@@ -99,7 +101,7 @@ function runScheduledRefresh_() {
   try {
     var r = refreshAll_();
     state.state = r.error ? "error" : "done";
-    state.message = r.message; state.count = r.count; state.bhl = r.bhl; state.pushed = r.pushed; state.updatedAt = r.updatedAt; state.warnings = r.warnings;
+    state.message = r.message; state.count = r.count; state.bhl = r.bhl; state.codeVersion = r.codeVersion; state.pushed = r.pushed; state.updatedAt = r.updatedAt; state.warnings = r.warnings;
   } catch (err) {
     state.state = "error";
     state.message = err.toString();
@@ -150,7 +152,7 @@ function refreshAll_() {
   var w = parsed.warnings || {};
   w.tabsNotInMaster = w.tabsNotInMaster || []; w.clubsWithoutTab = w.clubsWithoutTab || []; w.emptyTabs = w.emptyTabs || [];
   var result = {
-    count: parsed.data.length, bhl: parsed.data.filter(function (x) { return x.bhl; }).length, updatedAt: parsed.updatedAt, pushed: false, error: null,
+    codeVersion: CODE_VERSION, count: parsed.data.length, bhl: parsed.data.filter(function (x) { return x.bhl; }).length, updatedAt: parsed.updatedAt, pushed: false, error: null,
     // Script property giới hạn ~9KB nên chỉ giữ tối đa 15 tên mỗi loại để hiển thị trên trang admin
     warnings: {
       tabsNotInMaster: w.tabsNotInMaster.slice(0, 15), tabsNotInMasterTotal: w.tabsNotInMaster.length,
@@ -205,6 +207,7 @@ function buildAndSave_() {
     var payload = JSON.stringify({
       status: "success",
       updatedAt: new Date().toISOString(),
+      codeVersion: CODE_VERSION,
       data: dashboard.students,
       warnings: dashboard.warnings
     });

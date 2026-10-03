@@ -250,7 +250,9 @@ function collectDashboard_() {
     var clubName = masterData[i][1];
     var region = masterData[i][2];
     if (clubName && clubName.toString().trim()) {
+      var stt = parseInt(masterData[i][0], 10);      // Cột A: STT (cùng quy tắc với API quản lý CLB)
       clubMap[normKey_(clubName)] = {
+        stt: stt > 0 ? stt : i,
         name: clubName.toString().trim(),
         region: region ? region.toString().trim() : "Chưa rõ",
         hasTab: false
@@ -292,13 +294,17 @@ function collectDashboard_() {
         id: allStudents.length + 1,
         name: name,
         dharma: cellText_(row[2], tz),               // Cột C: Pháp danh
-        birthYear: cellText_(row[3], tz) || "Trống", // Cột D: Năm sinh
+        birthYear: yearOf_(row[3], tz) || "Trống",   // Cột D: chỉ lấy NĂM sinh (file này công khai, không đưa ngày tháng)
+        clubId: club.stt,                            // STT CLB: các trang CLB dùng để lọc võ sinh của CLB mình
         club: cleanSheetName,
         region: club.region,
         belt: cellText_(row[5], tz) || "Chưa cập nhật", // Cột F: Cấp đai
         profile: cellText_(row[11], tz),             // Cột L: Link profile
         gender: cellText_(row[13], tz) || "Chưa rõ", // Cột N: Giới tính
-        photo: photoRef_(row[20])                    // Cột U: Link ảnh đại diện (lưu ID file Drive cho gọn)
+        photo: photoRef_(row[20]),                   // Cột U: Link ảnh đại diện (lưu ID file Drive cho gọn)
+        pct: pctNumber_(row[8]),                     // Cột I: Tỷ lệ hoàn thành (0-100)
+        updated: cellText_(row[9], tz),              // Cột J: Ngày cập nhật tiến độ
+        register: row[16] === true                   // Cột Q: Đăng ký thi thăng đai (tick)
       });
     }
     // Tab khớp tên nhưng chưa có võ sinh nào (cột B trống) -> CLB sẽ không hiện trên Dashboard
@@ -314,6 +320,21 @@ function collectDashboard_() {
   if (warnings.emptyTabs.length) Logger.log("Tab khớp tên nhưng chưa có võ sinh nào: " + warnings.emptyTabs.join(" | "));
   if (warnings.clubsWithoutTab.length) Logger.log("CLB có trong DS_CLB_VD nhưng chưa có tab: " + warnings.clubsWithoutTab.join(" | "));
   return { students: allStudents, warnings: warnings };
+}
+
+/** Chỉ lấy năm 4 chữ số từ ô ngày sinh (ô ngày, "04/12/2008" hay "2012"). Không có thì trả về "". */
+function yearOf_(value, tz) {
+  var m = cellText_(value, tz).match(/(\d{4})/);
+  return m ? m[1] : "";
+}
+
+/** Tỷ lệ hoàn thành về số nguyên 0-100 (ô định dạng % lưu 0..1; ô chữ như "83%" cũng được). */
+function pctNumber_(v) {
+  if (v === "" || v === null || v === undefined) return 0;
+  var n = typeof v === "number" ? v : parseFloat(String(v).replace("%", "").replace(",", "."));
+  if (isNaN(n)) return 0;
+  if (typeof v === "number" && n <= 1) n = n * 100;
+  return Math.max(0, Math.min(100, Math.round(n)));
 }
 
 function cellText_(value, tz) {

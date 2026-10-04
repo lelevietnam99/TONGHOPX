@@ -97,7 +97,9 @@
 
         async function callApi(action, key) {
             const res = await fetch(API_URL + '?action=' + action + '&key=' + encodeURIComponent(key));
-            return res.json();
+            const text = await res.text();
+            try { return JSON.parse(text); }
+            catch (e) { throw new Error('Web app không trả về dữ liệu hợp lệ (HTTP ' + res.status + '): ' + text.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 200)); }
         }
 
         // Cảnh báo tên CLB không khớp giữa tab CLB và tab DS_CLB_VD (các CLB này sẽ KHÔNG hiện trên Dashboard)
@@ -122,7 +124,7 @@
                 // Bước 1: ra lệnh. Apps Script trả lời ngay, việc quét chạy ngầm.
                 const s1 = addStep('1/4 Đang gửi lệnh cập nhật...');
                 const start = await callApi('refresh', key);
-                if (start.status !== 'success') throw new Error(start.message);
+                if (start.status !== 'success') throw new Error(start.message || 'Web app trả lời lạ (không phải của Dashboard, có thể link API đang trỏ nhầm dự án): ' + JSON.stringify(start).slice(0, 300));
                 if (typeof start.started === 'undefined') throw new Error('Apps Script đang chạy bản cũ. Hãy Triển khai → Phiên bản mới rồi thử lại.');
                 s1.textContent = start.started ? '1/4 Đã gửi lệnh cập nhật.' : '1/4 Đang có một lượt cập nhật chạy sẵn, sẽ theo dõi lượt đó.';
                 s1.classList.add('ok');
@@ -159,7 +161,7 @@
                 }
                 s4.textContent = '4/4 Đã đẩy lên GitHub nhưng trang chưa công bố kịp. Hãy thử tải lại sau ít phút.'; s4.classList.add('err');
             } catch (error) {
-                addStep('Lỗi: ' + error.message, 'err');
+                addStep('Lỗi: ' + (error && error.message ? error.message : String(error)), 'err');
             } finally {
                 $('btnRefresh').disabled = false;
             }
